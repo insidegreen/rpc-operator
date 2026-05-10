@@ -1,0 +1,21 @@
+apiVersion: rpc.operator.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: hello-world
+  labels:
+    app.kubernetes.io/name: rpc-operator
+    app.kubernetes.io/managed-by: kustomize
+spec:
+  input:
+    type: generate
+    config:
+      mapping: 'root = "hello world"'
+      interval: "1s"
+      count: 5
+  processors:
+    - type: mapping
+      config:
+        mapping: "root = content().uppercase()"
+  output:
+    type: stdout
+    config: {}

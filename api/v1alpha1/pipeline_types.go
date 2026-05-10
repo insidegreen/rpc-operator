@@ -1,0 +1,119 @@
+/*
+Copyright 2026.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package v1alpha1
+
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+)
+
+// ComponentSpec describes one Redpanda Connect component (input, processor, or output).
+type ComponentSpec struct {
+	// Type is the RPC component name, e.g. "generate", "kafka", "mapping", "stdout".
+	// +kubebuilder:validation:Required
+	Type string `json:"type"`
+
+	// Config is passed verbatim as the body of the component in the rendered YAML.
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:Schemaless
+	// +optional
+	Config runtime.RawExtension `json:"config,omitempty"`
+}
+
+// PipelineSpec defines the desired state of Pipeline.
+type PipelineSpec struct {
+	// +kubebuilder:validation:Required
+	Input ComponentSpec `json:"input"`
+
+	// +optional
+	Processors []ComponentSpec `json:"processors,omitempty"`
+
+	// +kubebuilder:validation:Required
+	Output ComponentSpec `json:"output"`
+
+	// v0.1: only single-replica pipelines. Multi-replica is v0.4+.
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=1
+	// +optional
+	Replicas int32 `json:"replicas,omitempty"`
+
+	// +kubebuilder:default="docker.redpanda.com/redpandadata/connect:4"
+	// +optional
+	Image string `json:"image,omitempty"`
+}
+
+// PipelinePhase reports the high-level lifecycle stage of a Pipeline's pod.
+// +kubebuilder:validation:Enum=Pending;Running;Failed;Stopped
+type PipelinePhase string
+
+const (
+	PhasePending PipelinePhase = "Pending"
+	PhaseRunning PipelinePhase = "Running"
+	PhaseFailed  PipelinePhase = "Failed"
+	PhaseStopped PipelinePhase = "Stopped"
+)
+
+// PipelineStatus defines the observed state of Pipeline.
+type PipelineStatus struct {
+	// +optional
+	Phase PipelinePhase `json:"phase,omitempty"`
+
+	// +optional
+	PodName string `json:"podName,omitempty"`
+
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// +listType=map
+	// +listMapKey=type
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Pod",type=string,JSONPath=`.status.podName`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+
+// Pipeline is the Schema for the pipelines API.
+type Pipeline struct {
+	metav1.TypeMeta `json:",inline"`
+
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitzero"`
+
+	// +required
+	Spec PipelineSpec `json:"spec"`
+
+	// +optional
+	Status PipelineStatus `json:"status,omitzero"`
+}
+
+// +kubebuilder:object:root=true
+
+// PipelineList contains a list of Pipeline.
+type PipelineList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitzero"`
+	Items           []Pipeline `json:"items"`
+}
+
+func init() {
+	SchemeBuilder.Register(&Pipeline{}, &PipelineList{})
+}
