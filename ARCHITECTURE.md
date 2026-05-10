@@ -135,7 +135,7 @@ classDiagram
     }
     class ComponentSpec {
       +type string  // z.B. "kafka", "nats_jetstream", "mapping"
-      +config map~string,any~
+      +config any  // object ODER scalar string — je nach Komponente
     }
     class PipelineStatus {
       +phase string  // Pending|Running|Failed|Stopped
@@ -161,12 +161,18 @@ metadata:
 spec:
   replicas: 1
   input:
-    type: stdin
-    config: {}
+    type: generate
+    config:
+      mapping: 'root = "hello"'
+      interval: "1s"
+      count: 5
   processors:
+    # Bloblang-basierte Komponenten (mapping, bloblang) erwarten einen
+    # Skalar-String als Body, KEIN Objekt. ComponentSpec.config akzeptiert
+    # beide Formen (RawExtension), aber die richtige Form richtet sich nach
+    # dem RPC-Komponenten-Schema.
     - type: mapping
-      config:
-        mapping: "root = content().uppercase()"
+      config: "root = content().uppercase()"
   output:
     type: stdout
     config: {}
@@ -176,16 +182,24 @@ status:
   observedGeneration: 3
 ```
 
+> **Hinweis:** `stdin` als Input ist in Kubernetes nicht praxistauglich — ein Pod hat keine interaktive FD 0; der Connect-Prozess sieht sofort EOF und beendet sich. Für Demos/PoCs `generate` verwenden. Die Architektur-Skizze früherer Versionen mit `stdin` ist konzeptionell — nicht für den Cluster-Einsatz gedacht.
+
 Aus dieser CR generiert der Operator die RPC-konforme `pipeline.yaml`:
 
 ```yaml
 input:
-  stdin: {}
+  generate:
+    mapping: 'root = "hello"'
+    interval: "1s"
+    count: 5
 pipeline:
   processors:
-    - mapping: "root = content().uppercase()"
+    - mapping: "root = content().uppercase()"   # Skalar-String, kein Objekt
 output:
   stdout: {}
+http:
+  enabled: true
+  address: 0.0.0.0:4195
 ```
 
 ---
@@ -293,7 +307,10 @@ flowchart LR
 |---|---|
 | **Authn/Authz** | UI/API authentifiziert via OIDC; Backend nutzt User-ServiceAccount-Impersonation für K8s-Calls → native RBAC pro Namespace |
 | **Secrets** | Pipeline-Configs referenzieren `secretKeyRef` statt Klartext; Operator mountet entsprechend |
-| **Pod-Sicherheit** | `runAsNonRoot`, `readOnlyRootFilesystem`, eigene RestrictedPodSecurityStandard-konforme Defaults |
+| **Pod-Sicherheit** | `runAsNonRoot` (UID 10001), `readOnlyRootFilesystem`, gedropte Capabilities, seccomp `RuntimeDefault`; PodSecurityStandard *restricted*-konform |
+| **Pod-Lifecycle** | `restartPolicy: OnFailure` (nicht `Always`) — eine endliche RPC-Pipeline (z.B. `generate count=N`) endet sauber mit Exit 0; `Always` würde sie endlos neu starten und denselben Input replayen. `OnFailure` startet bei Crashes neu, lässt aber `Succeeded` Pods in Ruhe |
+| **Probes** | Liveness `:4195/ping` (immer 200), Readiness `:4195/ready` (200 nur wenn alle I/O verbunden). Initial-Delays großzügig (Liveness 5s) — RPC startet HTTP-Server *vor* den Pipeline-Stufen, aber Image-Pull + Lizenz-Load brauchen ein paar Sekunden |
+| **Termination** | `terminationGracePeriodSeconds: 30`; korrespondiert mit RPC's internem `shutdown_timeout: 20s` (Drain in-flight Messages, dann Force) |
 | **Resource-Limits** | Pflicht in CR; Operator weist Default zu, falls fehlt |
 | **Observability** | RPC exponiert Prometheus-Metrics auf `:4195/metrics`; ServiceMonitor pro Pipeline-Pod |
 | **Logs** | UI streamt via `kubectl logs`-Equivalent (Backend → K8s API) |
