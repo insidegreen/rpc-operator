@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rpc-operator-api
+  namespace: system
+  labels:
+    app.kubernetes.io/name: rpc-operator
+    app.kubernetes.io/component: api
+spec:
+  type: ClusterIP
+  ports:
+    - name: api
+      port: 8082
+      targetPort: 8082
+      protocol: TCP
+  selector:
+    control-plane: controller-manager

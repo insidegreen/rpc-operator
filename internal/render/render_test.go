@@ -8,7 +8,7 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 */
 
-package controller
+package render_test
 
 import (
 	"strings"
@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
+	"github.com/insidegreen/rpc-operator-claude/internal/render"
 )
 
 func TestRenderPipelineYAML_Generate(t *testing.T) {
@@ -39,9 +40,9 @@ func TestRenderPipelineYAML_Generate(t *testing.T) {
 		},
 	}
 
-	got, err := renderPipelineYAML(spec)
+	got, err := render.RenderPipelineYAML(spec)
 	if err != nil {
-		t.Fatalf("renderPipelineYAML: %v", err)
+		t.Fatalf("RenderPipelineYAML: %v", err)
 	}
 
 	mustContain := []string{
@@ -69,9 +70,9 @@ func TestRenderPipelineYAML_EmptyConfig(t *testing.T) {
 		Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
 	}
 
-	got, err := renderPipelineYAML(spec)
+	got, err := render.RenderPipelineYAML(spec)
 	if err != nil {
-		t.Fatalf("renderPipelineYAML: %v", err)
+		t.Fatalf("RenderPipelineYAML: %v", err)
 	}
 	for _, want := range []string{"stdin: {}", "stdout: {}"} {
 		if !strings.Contains(got, want) {
@@ -85,9 +86,9 @@ func TestRenderPipelineYAML_NullConfig(t *testing.T) {
 		Input:  rpcv1alpha1.ComponentSpec{Type: "stdin", Config: runtime.RawExtension{Raw: []byte("null")}},
 		Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
 	}
-	got, err := renderPipelineYAML(spec)
+	got, err := render.RenderPipelineYAML(spec)
 	if err != nil {
-		t.Fatalf("renderPipelineYAML: %v", err)
+		t.Fatalf("RenderPipelineYAML: %v", err)
 	}
 	if !strings.Contains(got, "stdin: {}") {
 		t.Errorf("null Config.Raw should render as empty object\n%s", got)
@@ -102,7 +103,7 @@ func TestRenderPipelineYAML_InvalidJSON(t *testing.T) {
 		},
 		Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
 	}
-	_, err := renderPipelineYAML(spec)
+	_, err := render.RenderPipelineYAML(spec)
 	if err == nil {
 		t.Fatal("expected error for invalid JSON config, got nil")
 	}

@@ -1,0 +1,14 @@
+{
+  "name": "mapping",
+  "category": "processors",
+  "status": "stable",
+  "summary": "Apply a Bloblang mapping to each message.",
+  "bodyKind": "scalar",
+  "replicaSafety": "safe",
+  "configSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "string",
+    "minLength": 1,
+    "description": "A Bloblang mapping expression. Body is a scalar string, not an object."
+  }
+}

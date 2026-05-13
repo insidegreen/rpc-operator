@@ -30,6 +30,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
+	"github.com/insidegreen/rpc-operator-claude/internal/render"
 )
 
 const finalizerName = "rpc.operator.io/finalizer"
@@ -78,7 +79,7 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	yamlStr, err := renderPipelineYAML(&pipe.Spec)
+	yamlStr, err := render.RenderPipelineYAML(&pipe.Spec)
 	if err != nil {
 		log.Error(err, "render failed")
 		return r.markFailed(ctx, &pipe, "RenderError", err.Error())

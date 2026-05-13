@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
+	"github.com/insidegreen/rpc-operator-claude/internal/api"
 	"github.com/insidegreen/rpc-operator-claude/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
@@ -59,6 +60,7 @@ func main() {
 	var webhookCertPath, webhookCertName, webhookCertKey string
 	var enableLeaderElection bool
 	var probeAddr string
+	var apiAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var tlsOpts []func(*tls.Config)
@@ -77,6 +79,8 @@ func main() {
 		"The directory that contains the metrics server certificate.")
 	flag.StringVar(&metricsCertName, "metrics-cert-name", "tls.crt", "The name of the metrics server certificate file.")
 	flag.StringVar(&metricsCertKey, "metrics-cert-key", "tls.key", "The name of the metrics server key file.")
+	flag.StringVar(&apiAddr, "api-bind-address", ":8082",
+		"Address the REST API listens on. Empty string disables the API server.")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	opts := zap.Options{
@@ -186,6 +190,18 @@ func main() {
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
+
+	if apiAddr != "" {
+		apiSrv, err := api.New(apiAddr, mgr.GetClient())
+		if err != nil {
+			setupLog.Error(err, "Failed to create API server")
+			os.Exit(1)
+		}
+		if err := mgr.Add(apiSrv); err != nil {
+			setupLog.Error(err, "Failed to register API server with manager")
+			os.Exit(1)
+		}
+	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "Failed to set up health check")

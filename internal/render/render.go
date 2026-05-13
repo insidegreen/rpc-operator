@@ -8,7 +8,7 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 */
 
-package controller
+package render
 
 import (
 	"encoding/json"
@@ -19,10 +19,10 @@ import (
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 )
 
-// renderPipelineYAML produces a Redpanda Connect config from a PipelineSpec.
-// The rendered document also enables the HTTP server on :4195 so liveness and
-// readiness probes have something to talk to.
-func renderPipelineYAML(spec *rpcv1alpha1.PipelineSpec) (string, error) {
+// RenderPipelineYAML produces a Redpanda Connect config from a PipelineSpec.
+// The rendered document also enables the HTTP server on :4195 for liveness and
+// readiness probes.
+func RenderPipelineYAML(spec *rpcv1alpha1.PipelineSpec) (string, error) {
 	inputBlock, err := componentBlock(&spec.Input)
 	if err != nil {
 		return "", fmt.Errorf("input: %w", err)

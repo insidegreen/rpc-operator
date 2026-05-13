@@ -1,0 +1,20 @@
+{
+  "name": "stdout",
+  "category": "outputs",
+  "status": "stable",
+  "summary": "Print each message to stdout (one line per message).",
+  "bodyKind": "object",
+  "replicaSafety": "safe",
+  "configSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "codec": {
+        "type": "string",
+        "default": "lines",
+        "enum": ["lines", "all-bytes", "delim"]
+      }
+    }
+  }
+}
