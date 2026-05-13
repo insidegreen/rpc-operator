@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -33,7 +34,10 @@ import (
 	"github.com/insidegreen/rpc-operator-claude/internal/render"
 )
 
-const finalizerName = "rpc.operator.io/finalizer"
+const (
+	finalizerName      = "rpc.operator.io/finalizer"
+	specHashAnnotation = "rpc.operator.io/spec-hash"
+)
 
 // PipelineReconciler reconciles a Pipeline object.
 type PipelineReconciler struct {
@@ -85,6 +89,8 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return r.markFailed(ctx, &pipe, "RenderError", err.Error())
 	}
 
+	newHash := fmt.Sprintf("%x", sha256.Sum256([]byte(yamlStr+"\x00"+pipe.Spec.Image)))
+
 	cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{
 		Name:      pipe.Name + "-config",
 		Namespace: pipe.Namespace,
@@ -96,16 +102,32 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, fmt.Errorf("apply configmap: %w", err)
 	}
 
+	// Delete the pod if its spec-hash annotation doesn't match the current render.
+	// The next reconcile will recreate it with the updated spec.
+	existingPod := &corev1.Pod{}
+	if err := r.Get(ctx, client.ObjectKey{Name: pipe.Name, Namespace: pipe.Namespace}, existingPod); err == nil {
+		if existingPod.Annotations[specHashAnnotation] != newHash {
+			if delErr := r.Delete(ctx, existingPod); client.IgnoreNotFound(delErr) != nil {
+				return ctrl.Result{}, fmt.Errorf("delete stale pod: %w", delErr)
+			}
+			return ctrl.Result{Requeue: true}, nil
+		}
+	} else if client.IgnoreNotFound(err) != nil {
+		return ctrl.Result{}, fmt.Errorf("get pod: %w", err)
+	}
+
 	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Name:      pipe.Name,
 		Namespace: pipe.Namespace,
 	}}
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, pod, func() error {
-		// Pod spec is largely immutable — only set on creation.
 		if pod.CreationTimestamp.IsZero() {
 			pod.Spec = buildPodSpec(cm.Name, pipe.Spec.Image)
 			pod.Labels = map[string]string{
 				"rpc.operator.io/pipeline": pipe.Name,
+			}
+			pod.Annotations = map[string]string{
+				specHashAnnotation: newHash,
 			}
 		}
 		return controllerutil.SetControllerReference(&pipe, pod, r.Scheme)

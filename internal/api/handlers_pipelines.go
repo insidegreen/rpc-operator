@@ -92,8 +92,7 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	current.ManagedFields = nil
-	writeJSONWithWarning(w, http.StatusOK, &current,
-		"pod will not restart until v0.2 pod-spec mutability ships (see HANDOFF.md)")
+	writeJSON(w, http.StatusOK, &current)
 }
 
 func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {

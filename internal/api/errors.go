@@ -33,14 +33,6 @@ func writeValidationErrors(w http.ResponseWriter, errs []ValidationError) {
 	})
 }
 
-func writeJSONWithWarning(w http.ResponseWriter, code int, body any, warning string) {
-	type withWarning struct {
-		Data     any      `json:"data"`
-		Warnings []string `json:"warnings,omitempty"`
-	}
-	writeJSON(w, code, withWarning{Data: body, Warnings: []string{warning}})
-}
-
 func writeK8sError(w http.ResponseWriter, err error) {
 	switch {
 	case apierrors.IsNotFound(err):

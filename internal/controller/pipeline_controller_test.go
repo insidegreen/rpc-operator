@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
@@ -159,5 +160,48 @@ var _ = Describe("Pipeline Controller", func() {
 			err := k8sClient.Get(ctx, nn, &rpcv1alpha1.Pipeline{})
 			return apierrors.IsNotFound(err)
 		}).Should(BeTrue())
+	})
+
+	It("re-rolls the pod when the Pipeline spec changes", func() {
+		// Reconcile 1: add finalizer.
+		_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		// Reconcile 2: create ConfigMap + Pod.
+		_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		By("having the spec-hash annotation on the initial pod")
+		pod := &corev1.Pod{}
+		Expect(k8sClient.Get(ctx, nn, pod)).To(Succeed())
+		originalHash := pod.Annotations[specHashAnnotation]
+		Expect(originalHash).NotTo(BeEmpty())
+
+		By("updating the Pipeline spec")
+		pipe := &rpcv1alpha1.Pipeline{}
+		Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+		pipe.Spec.Input.Config = runtime.RawExtension{Raw: []byte(
+			`{"mapping":"root = \"updated\"","interval":"2s","count":1}`,
+		)}
+		Expect(k8sClient.Update(ctx, pipe)).To(Succeed())
+
+		By("reconcile detects hash mismatch and deletes the pod")
+		result, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result).To(Equal(ctrl.Result{Requeue: true}))
+
+		By("pod is gone after the stale-pod delete")
+		Eventually(func() bool {
+			return apierrors.IsNotFound(k8sClient.Get(ctx, nn, &corev1.Pod{}))
+		}).Should(BeTrue())
+
+		By("next reconcile creates a new pod with an updated hash annotation")
+		_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		newPod := &corev1.Pod{}
+		Expect(k8sClient.Get(ctx, nn, newPod)).To(Succeed())
+		Expect(newPod.Annotations[specHashAnnotation]).NotTo(BeEmpty())
+		Expect(newPod.Annotations[specHashAnnotation]).NotTo(Equal(originalHash))
 	})
 })

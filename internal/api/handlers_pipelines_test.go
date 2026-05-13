@@ -184,7 +184,7 @@ func TestHandlerPipelines_Delete(t *testing.T) {
 	}
 }
 
-func TestHandlerPipelines_Update_ReturnsMutabilityWarning(t *testing.T) {
+func TestHandlerPipelines_Update_ReturnsUpdated(t *testing.T) {
 	existing := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "upd-me", Namespace: "default"},
 		Spec: rpcv1alpha1.PipelineSpec{
@@ -212,12 +212,11 @@ func TestHandlerPipelines_Update_ReturnsMutabilityWarning(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	warningsRaw, ok := result["warnings"]
-	if !ok {
-		t.Fatal("response missing 'warnings' key")
+	if _, ok := result["warnings"]; ok {
+		t.Error("response must not contain 'warnings' key after pod-spec mutability ships")
 	}
-	if !strings.Contains(string(warningsRaw), "pod will not restart") {
-		t.Errorf("expected mutability warning, got %s", warningsRaw)
+	if result["metadata"] == nil {
+		t.Error("response missing 'metadata'")
 	}
 }
 
