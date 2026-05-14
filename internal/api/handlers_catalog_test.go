@@ -24,10 +24,10 @@ func TestHandlerCatalog_ListReturnsAllItems(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	// 3 originals (generate, mapping, stdout) + 6 composite (broker/input, sequence,
-	// broker/output, fallback, branch, for_each) = 9
-	if len(result.Items) != 9 {
-		t.Errorf("expected 9 items, got %d", len(result.Items))
+	// 9 originals + 9 new (http_client×2, nats×2, aws_s3×2, sql_select, sql_insert, sql_raw)
+	// + 4 NATS (nats_jetstream×2, nats_kv×2) = 22
+	if len(result.Items) != 22 {
+		t.Errorf("expected 22 items, got %d", len(result.Items))
 	}
 }
 

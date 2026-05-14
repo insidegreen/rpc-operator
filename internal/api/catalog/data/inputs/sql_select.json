@@ -1,0 +1,55 @@
+{
+  "name": "sql_select",
+  "category": "inputs",
+  "status": "stable",
+  "summary": "Executes a SQL SELECT query and emits each result row as a message. Supports PostgreSQL, SQLite, MySQL, and others.",
+  "bodyKind": "object",
+  "replicaSafety": "unsafe",
+  "configSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["driver", "dsn", "table", "columns"],
+    "properties": {
+      "driver": {
+        "type": "string",
+        "enum": ["postgres", "mysql", "sqlite", "mssql", "clickhouse", "trino"],
+        "description": "Database driver. Use \"postgres\" for PostgreSQL, \"sqlite\" for SQLite."
+      },
+      "dsn": {
+        "type": "string",
+        "description": "Data Source Name. Examples: \"postgres://user:pass@host:5432/db\", \"file:data.db?cache=shared\"."
+      },
+      "table": {
+        "type": "string",
+        "description": "Table (or view) name to select from."
+      },
+      "columns": {
+        "type": "array",
+        "items": { "type": "string" },
+        "minItems": 1,
+        "description": "Columns to select. Use [\"*\"] to select all."
+      },
+      "where": {
+        "type": "string",
+        "description": "Optional SQL WHERE clause (without the WHERE keyword), e.g. \"created_at > ?\"."
+      },
+      "args_mapping": {
+        "type": "string",
+        "description": "Bloblang mapping that produces an array of values to bind to WHERE placeholders."
+      },
+      "prefix": {
+        "type": "string",
+        "description": "SQL fragment inserted before the SELECT statement."
+      },
+      "suffix": {
+        "type": "string",
+        "description": "SQL fragment appended after the SELECT statement (e.g. \"ORDER BY id LIMIT 100\")."
+      },
+      "init_statement": {
+        "type": "string",
+        "description": "SQL statement executed once when the connection is established (e.g. PRAGMA or SET commands)."
+      }
+    },
+    "additionalProperties": false
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "name": "nats_jetstream",
+  "category": "inputs",
+  "status": "stable",
+  "summary": "Consumes messages from a NATS JetStream stream via a push or pull consumer.",
+  "bodyKind": "object",
+  "replicaSafety": "safe",
+  "configSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["urls", "subject"],
+    "properties": {
+      "urls": {
+        "type": "array",
+        "items": { "type": "string" },
+        "minItems": 1,
+        "description": "List of NATS server URLs (e.g. [\"nats://localhost:4222\"])."
+      },
+      "subject": {
+        "type": "string",
+        "description": "Subject to consume from. Must match the stream's subject filter."
+      },
+      "durable": {
+        "type": "string",
+        "description": "Durable consumer name. Required for persistent/resumable consumption across restarts."
+      },
+      "stream": {
+        "type": "string",
+        "description": "Explicit stream name. If empty, JetStream infers the stream from the subject."
+      },
+      "deliver": {
+        "type": "string",
+        "enum": ["all", "last", "new", "last_per_subject"],
+        "default": "all",
+        "description": "Delivery policy: where to start consuming messages."
+      },
+      "max_ack_pending": {
+        "type": "integer",
+        "minimum": 1,
+        "default": 1024,
+        "description": "Maximum number of unacknowledged messages in flight."
+      },
+      "ack_wait": {
+        "type": "string",
+        "default": "30s",
+        "description": "Time limit for message acknowledgement before redelivery (Go duration syntax)."
+      },
+      "filter_subjects": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Additional subject filters (requires JetStream server ≥ 2.10)."
+      }
+    },
+    "additionalProperties": false
+  }
+}

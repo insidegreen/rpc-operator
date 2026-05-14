@@ -1,0 +1,64 @@
+{
+  "name": "aws_s3",
+  "category": "outputs",
+  "status": "stable",
+  "summary": "Writes each message as an object to an AWS S3 bucket.",
+  "bodyKind": "object",
+  "replicaSafety": "safe",
+  "configSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["bucket"],
+    "properties": {
+      "bucket": {
+        "type": "string",
+        "description": "S3 bucket name to write to."
+      },
+      "path": {
+        "type": "string",
+        "default": "${!count(\"files\")}-${!timestamp_unix_nano()}.txt",
+        "description": "Object key path. Supports Bloblang interpolation."
+      },
+      "content_type": {
+        "type": "string",
+        "default": "application/octet-stream",
+        "description": "Content-Type header for the uploaded object."
+      },
+      "storage_class": {
+        "type": "string",
+        "enum": ["STANDARD", "REDUCED_REDUNDANCY", "GLACIER", "STANDARD_IA", "ONEZONE_IA", "INTELLIGENT_TIERING", "DEEP_ARCHIVE"],
+        "default": "STANDARD",
+        "description": "S3 storage class for the object."
+      },
+      "region": {
+        "type": "string",
+        "description": "AWS region. Defaults to AWS_REGION env var."
+      },
+      "endpoint": {
+        "type": "string",
+        "description": "Custom endpoint URL for S3-compatible services (e.g. MinIO)."
+      },
+      "max_in_flight": {
+        "type": "integer",
+        "minimum": 1,
+        "default": 64,
+        "description": "Maximum number of parallel upload operations."
+      },
+      "timeout": {
+        "type": "string",
+        "default": "5s",
+        "description": "Upload timeout (Go duration syntax)."
+      },
+      "credentials": {
+        "type": "object",
+        "description": "AWS credentials. Omit to use the default credential chain.",
+        "properties": {
+          "id":     { "type": "string" },
+          "secret": { "type": "string" },
+          "token":  { "type": "string" },
+          "profile":{ "type": "string" }
+        }
+      }
+    }
+  }
+}

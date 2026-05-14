@@ -1,0 +1,36 @@
+{
+  "name": "nats",
+  "category": "inputs",
+  "status": "stable",
+  "summary": "Subscribes to a NATS subject and emits received messages.",
+  "bodyKind": "object",
+  "replicaSafety": "safe",
+  "configSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["urls", "subject"],
+    "properties": {
+      "urls": {
+        "type": "array",
+        "items": { "type": "string" },
+        "minItems": 1,
+        "description": "List of NATS server URLs (e.g. [\"nats://localhost:4222\"])."
+      },
+      "subject": {
+        "type": "string",
+        "description": "Subject to subscribe to. Supports wildcards (* and >)."
+      },
+      "queue": {
+        "type": "string",
+        "description": "Queue group name. When set, messages are distributed across group members — use this for safe multi-replica operation."
+      },
+      "prefetch_count": {
+        "type": "integer",
+        "minimum": 0,
+        "default": 32,
+        "description": "Number of messages to prefetch per subscription."
+      }
+    },
+    "additionalProperties": false
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "nats_kv",
+  "category": "inputs",
+  "status": "stable",
+  "summary": "Watches a NATS JetStream Key-Value bucket and emits an entry for each put/delete operation.",
+  "bodyKind": "object",
+  "replicaSafety": "unsafe",
+  "configSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["urls", "bucket"],
+    "properties": {
+      "urls": {
+        "type": "array",
+        "items": { "type": "string" },
+        "minItems": 1,
+        "description": "List of NATS server URLs (e.g. [\"nats://localhost:4222\"])."
+      },
+      "bucket": {
+        "type": "string",
+        "description": "KV bucket name to watch."
+      },
+      "key": {
+        "type": "string",
+        "description": "Specific key to watch. Omit (or use \">\") to watch all keys in the bucket."
+      }
+    },
+    "additionalProperties": false
+  }
+}

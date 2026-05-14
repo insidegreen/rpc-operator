@@ -1,0 +1,36 @@
+{
+  "name": "nats_kv",
+  "category": "outputs",
+  "status": "stable",
+  "summary": "Puts or deletes a key in a NATS JetStream Key-Value bucket.",
+  "bodyKind": "object",
+  "replicaSafety": "safe",
+  "configSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["urls", "bucket", "key"],
+    "properties": {
+      "urls": {
+        "type": "array",
+        "items": { "type": "string" },
+        "minItems": 1,
+        "description": "List of NATS server URLs (e.g. [\"nats://localhost:4222\"])."
+      },
+      "bucket": {
+        "type": "string",
+        "description": "KV bucket name to write to."
+      },
+      "key": {
+        "type": "string",
+        "description": "Key to set. Supports Bloblang interpolation (e.g. \"${!this.id}\")."
+      },
+      "max_in_flight": {
+        "type": "integer",
+        "minimum": 1,
+        "default": 64,
+        "description": "Maximum number of parallel put operations."
+      }
+    },
+    "additionalProperties": false
+  }
+}

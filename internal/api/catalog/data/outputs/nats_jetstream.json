@@ -1,0 +1,37 @@
+{
+  "name": "nats_jetstream",
+  "category": "outputs",
+  "status": "stable",
+  "summary": "Publishes messages to a NATS JetStream subject.",
+  "bodyKind": "object",
+  "replicaSafety": "safe",
+  "configSchema": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": ["urls", "subject"],
+    "properties": {
+      "urls": {
+        "type": "array",
+        "items": { "type": "string" },
+        "minItems": 1,
+        "description": "List of NATS server URLs (e.g. [\"nats://localhost:4222\"])."
+      },
+      "subject": {
+        "type": "string",
+        "description": "Subject to publish to. Supports Bloblang interpolation."
+      },
+      "max_in_flight": {
+        "type": "integer",
+        "minimum": 1,
+        "default": 64,
+        "description": "Maximum number of parallel in-flight publish operations."
+      },
+      "headers": {
+        "type": "object",
+        "additionalProperties": { "type": "string" },
+        "description": "NATS message headers to attach to every published message."
+      }
+    },
+    "additionalProperties": false
+  }
+}
