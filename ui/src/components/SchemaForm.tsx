@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import Form from '@rjsf/core'
 import validator from '@rjsf/validator-ajv8'
-import type { IconButtonProps, ArrayFieldTemplateItemType } from '@rjsf/utils'
+import type { IconButtonProps, ArrayFieldTemplateItemType, FieldTemplateProps, ArrayFieldTemplateProps } from '@rjsf/utils'
 import { CompositeForm } from './CompositeForm'
 import type { CatalogComponent } from '../types'
 
@@ -20,6 +21,66 @@ function AddButton({ onClick }: IconButtonProps) {
 
 function NullButton() { return null }
 
+function infoBtn(open: boolean, toggle: () => void): React.ReactElement {
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      title={open ? 'Info ausblenden' : 'Info anzeigen'}
+      style={{
+        width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+        border: '1px solid #aab', background: open ? '#e8eeff' : 'none',
+        color: '#5566aa', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+        lineHeight: '14px', padding: 0, textAlign: 'center',
+      }}
+    >
+      i
+    </button>
+  )
+}
+
+function FieldTemplate({ id, label, required, displayLabel, rawDescription, children, errors }: FieldTemplateProps) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ marginBottom: 8 }}>
+      {displayLabel && label && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+          <label htmlFor={id} style={{ fontSize: 13, fontWeight: 500 }}>
+            {label}{required ? ' *' : ''}
+          </label>
+          {rawDescription && infoBtn(open, () => setOpen(o => !o))}
+        </div>
+      )}
+      {open && rawDescription && (
+        <p style={{ fontSize: 12, color: '#555', margin: '0 0 6px', lineHeight: 1.4 }}>{rawDescription}</p>
+      )}
+      {children}
+      {errors}
+    </div>
+  )
+}
+
+function ArrayFieldTemplate({ items, canAdd, onAddClick, schema, title, uiSchema, registry }: ArrayFieldTemplateProps) {
+  const [open, setOpen] = useState(false)
+  const description = schema.description
+  const { ArrayFieldItemTemplate, ButtonTemplates: { AddButton } } = registry.templates
+  return (
+    <div>
+      {title && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+          <span style={{ fontSize: 13, fontWeight: 500 }}>{title}</span>
+          {description && infoBtn(open, () => setOpen(o => !o))}
+        </div>
+      )}
+      {open && description && (
+        <p style={{ fontSize: 12, color: '#555', margin: '0 0 6px', lineHeight: 1.4 }}>{description}</p>
+      )}
+      {items.map(({ key, ...itemProps }) => <ArrayFieldItemTemplate key={key} {...itemProps} />)}
+      {canAdd && <AddButton onClick={onAddClick} registry={registry} uiSchema={uiSchema} />}
+    </div>
+  )
+}
+
 const ArrayItemTemplate = ({ children, hasRemove, onDropIndexClick, index }: ArrayFieldTemplateItemType) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
     <div style={{ flex: 1 }}>{children}</div>
@@ -35,6 +96,8 @@ const ArrayItemTemplate = ({ children, hasRemove, onDropIndexClick, index }: Arr
 )
 
 const formTemplates = {
+  FieldTemplate,
+  ArrayFieldTemplate,
   ArrayFieldItemTemplate: ArrayItemTemplate,
   ButtonTemplates: { AddButton, MoveUpButton: NullButton, MoveDownButton: NullButton },
 }
