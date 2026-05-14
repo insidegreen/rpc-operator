@@ -52,6 +52,7 @@ type PipelineReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=core,resources=pods/log,verbs=get
 
 // Reconcile drives the Pipeline CR towards its desired state: a ConfigMap
 // holding the rendered Redpanda Connect config, and a Pod running the connect

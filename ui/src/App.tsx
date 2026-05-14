@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { listCatalog, getPipeline } from './api'
 import { PipelineEditor } from './components/PipelineEditor'
 import { PipelineList } from './components/PipelineList'
+import { PipelineDetail } from './components/PipelineDetail'
 import { DeployBar } from './components/DeployBar'
 import type { CatalogComponent, Pipeline, PipelineSpec } from './types'
 
@@ -11,7 +12,7 @@ const DEFAULT_SPEC: PipelineSpec = {
   output: { type: 'stdout', config: {} },
 }
 
-type View = 'list' | 'editor'
+type View = 'list' | 'editor' | 'detail'
 
 export default function App() {
   const [view, setView] = useState<View>('list')
@@ -19,6 +20,7 @@ export default function App() {
   const [name, setName] = useState('my-pipeline')
   const [spec, setSpec] = useState<PipelineSpec>(DEFAULT_SPEC)
   const [catalog, setCatalog] = useState<CatalogComponent[]>([])
+  const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null)
 
   useEffect(() => { listCatalog().then(setCatalog).catch(console.error) }, [])
   const catalogCache = useMemo(
@@ -38,6 +40,11 @@ export default function App() {
       setSpec(pipeline.spec)
     }
     setView('editor')
+  }
+
+  function handleViewDetail(pipeline: Pipeline) {
+    setSelectedPipeline(pipeline)
+    setView('detail')
   }
 
   function handleNew() {
@@ -77,7 +84,20 @@ export default function App() {
       </div>
 
       {view === 'list' && (
-        <PipelineList namespace={namespace} onEdit={handleEdit} onNew={handleNew} />
+        <PipelineList
+          namespace={namespace}
+          onEdit={handleEdit}
+          onViewDetail={handleViewDetail}
+          onNew={handleNew}
+        />
+      )}
+
+      {view === 'detail' && selectedPipeline && (
+        <PipelineDetail
+          pipeline={selectedPipeline}
+          onEdit={() => handleEdit(selectedPipeline)}
+          onBack={() => setView('list')}
+        />
       )}
 
       {view === 'editor' && (

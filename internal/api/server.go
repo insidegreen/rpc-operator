@@ -11,10 +11,13 @@ package api
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"time"
 
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -24,22 +27,27 @@ import (
 
 // Server is an HTTP REST server that integrates with the controller-runtime Manager.
 type Server struct {
-	Addr    string
-	Client  client.Client
-	Catalog *catalog.Catalog
-	srv     *http.Server
+	Addr      string
+	Client    client.Client
+	Clientset *kubernetes.Clientset // for pod log streaming; nil in tests
+	Catalog   *catalog.Catalog
+	srv       *http.Server
 }
 
 // Compile-time check that Server implements manager.Runnable.
 var _ manager.Runnable = (*Server)(nil)
 
 // New constructs a Server. Returns an error if the embedded catalog fails to load.
-func New(addr string, c client.Client) (*Server, error) {
+func New(addr string, c client.Client, restCfg *rest.Config) (*Server, error) {
 	cat, err := catalog.Default()
 	if err != nil {
 		return nil, err
 	}
-	return &Server{Addr: addr, Client: c, Catalog: cat}, nil
+	cs, err := kubernetes.NewForConfig(restCfg)
+	if err != nil {
+		return nil, fmt.Errorf("build clientset: %w", err)
+	}
+	return &Server{Addr: addr, Client: c, Clientset: cs, Catalog: cat}, nil
 }
 
 // Start implements manager.Runnable. Called by the manager once the cache is synced.
@@ -91,6 +99,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/pipelines/validate", s.handleValidate)
 	mux.HandleFunc("GET /api/v1/catalog", s.handleCatalogList)
 	mux.HandleFunc("GET /api/v1/catalog/{category}/{name}", s.handleCatalogGet)
+	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}/logs", s.handleLogStream)
 
 	// Serve the embedded SPA. Must come after all /api/v1/ routes (catch-all).
 	sub, err := fs.Sub(StaticFiles, "static")

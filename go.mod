@@ -3,6 +3,7 @@ module github.com/insidegreen/rpc-operator-claude
 go 1.25.7
 
 require (
+	github.com/coder/websocket v1.8.14
 	github.com/onsi/ginkgo/v2 v2.27.2
 	github.com/onsi/gomega v1.38.2
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2

@@ -192,7 +192,7 @@ func main() {
 	// +kubebuilder:scaffold:builder
 
 	if apiAddr != "" {
-		apiSrv, err := api.New(apiAddr, mgr.GetClient())
+		apiSrv, err := api.New(apiAddr, mgr.GetClient(), mgr.GetConfig())
 		if err != nil {
 			setupLog.Error(err, "Failed to create API server")
 			os.Exit(1)

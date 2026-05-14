@@ -25,6 +25,12 @@ rules:
   - create
   - patch
 - apiGroups:
+  - ""
+  resources:
+  - pods/log
+  verbs:
+  - get
+- apiGroups:
   - rpc.operator.io
   resources:
   - pipelines

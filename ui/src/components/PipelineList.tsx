@@ -5,10 +5,11 @@ import type { Pipeline } from '../types'
 interface Props {
   namespace: string
   onEdit: (pipeline: Pipeline) => void
+  onViewDetail: (pipeline: Pipeline) => void
   onNew: () => void
 }
 
-export function PipelineList({ namespace, onEdit, onNew }: Props) {
+export function PipelineList({ namespace, onEdit, onViewDetail, onNew }: Props) {
   const [pipelines, setPipelines] = useState<Pipeline[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>()
@@ -70,7 +71,7 @@ export function PipelineList({ namespace, onEdit, onNew }: Props) {
             {pipelines.map(p => (
               <React.Fragment key={p.metadata.name}>
                 <tr
-                  onClick={() => onEdit(p)}
+                  onClick={() => onViewDetail(p)}
                   style={{ cursor: 'pointer', borderBottom: expanded.has(p.metadata.name) ? 'none' : '1px solid #eee' }}
                   onMouseEnter={e => (e.currentTarget.style.background = '#f9f9ff')}
                   onMouseLeave={e => (e.currentTarget.style.background = '')}
@@ -93,6 +94,14 @@ export function PipelineList({ namespace, onEdit, onNew }: Props) {
                     </button>
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'right' }}>
+                    <button
+                      onClick={e => { e.stopPropagation(); onEdit(p) }}
+                      style={{ color: '#555', border: '1px solid #ccc', background: 'none',
+                               cursor: 'pointer', borderRadius: 3, fontSize: 12,
+                               padding: '1px 8px', marginRight: 6 }}
+                    >
+                      Bearbeiten
+                    </button>
                     <button
                       onClick={e => handleDelete(p, e)}
                       style={{ color: '#c00', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13 }}
