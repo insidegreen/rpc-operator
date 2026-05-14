@@ -66,7 +66,11 @@ func componentBlock(c *rpcv1alpha1.ComponentSpec) (map[string]any, error) {
 	}
 	// Recursively convert any embedded ComponentSpec objects/arrays to RPC-native format.
 	cfg = renderCompositeFields(cfg)
-	return map[string]any{c.Type: cfg}, nil
+	result := map[string]any{c.Type: cfg}
+	if c.Label != "" {
+		result["label"] = c.Label
+	}
+	return result, nil
 }
 
 // renderCompositeFields traverses a config value recursively.
@@ -116,7 +120,7 @@ func looksLikeComponentSpecArray(val []any) bool {
 }
 
 // looksLikeComponentSpec returns true when m contains exactly the keys "type"
-// (non-empty string) and optionally "config" — no other keys allowed.
+// (non-empty string) and optionally "config" and/or "label" — no other keys allowed.
 // This strict signature prevents false-positives on normal config maps.
 func looksLikeComponentSpec(m map[string]any) bool {
 	t, ok := m["type"].(string)
@@ -124,7 +128,7 @@ func looksLikeComponentSpec(m map[string]any) bool {
 		return false
 	}
 	for k := range m {
-		if k != "type" && k != "config" {
+		if k != "type" && k != "config" && k != "label" {
 			return false
 		}
 	}

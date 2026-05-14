@@ -64,7 +64,7 @@ func validPipelineBody(name, ns string) []byte {
 				"config": map[string]any{"mapping": `root = "hi"`, "interval": "1s", "count": 3},
 			},
 			"processors": []any{
-				map[string]any{"type": "mapping", "config": `root = content().uppercase()`},
+				map[string]any{"type": "mapping", "label": "normalize", "config": `root = content().uppercase()`},
 			},
 			"output": map[string]any{"type": "stdout", "config": map[string]any{}},
 		},

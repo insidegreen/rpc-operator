@@ -2,6 +2,7 @@
 
 export interface ComponentSpec {
   type: string
+  label?: string
   // config is unknown: string (scalar), object (object/composite Pattern A),
   // or ComponentSpec[] directly (composite Pattern B: for_each, fallback)
   config?: unknown

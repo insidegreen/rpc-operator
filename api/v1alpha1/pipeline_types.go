@@ -27,6 +27,11 @@ type ComponentSpec struct {
 	// +kubebuilder:validation:Required
 	Type string `json:"type"`
 
+	// Label is the Benthos component label used for metrics and tracing.
+	// Required for processors; optional for input and output.
+	// +optional
+	Label string `json:"label,omitempty"`
+
 	// Config is passed verbatim as the body of the component in the rendered YAML.
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:Schemaless

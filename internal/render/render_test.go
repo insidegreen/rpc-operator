@@ -253,3 +253,30 @@ func TestRenderPipelineYAML_InvalidJSON(t *testing.T) {
 		t.Errorf("expected error to mention 'config not valid JSON', got: %v", err)
 	}
 }
+
+func TestRenderPipelineYAML_ProcessorLabel(t *testing.T) {
+	spec := &rpcv1alpha1.PipelineSpec{
+		Input: rpcv1alpha1.ComponentSpec{
+			Type:   "generate",
+			Config: runtime.RawExtension{Raw: []byte(`{"mapping":"root = \"hello\"","interval":"1s","count":1}`)},
+		},
+		Processors: []rpcv1alpha1.ComponentSpec{{
+			Type:   "mapping",
+			Label:  "normalize",
+			Config: runtime.RawExtension{Raw: []byte(`"root = content().uppercase()"`)},
+		}},
+		Output: rpcv1alpha1.ComponentSpec{
+			Type:   "stdout",
+			Config: runtime.RawExtension{Raw: []byte(`{}`)},
+		},
+	}
+	got, err := render.RenderPipelineYAML(spec)
+	if err != nil {
+		t.Fatalf("RenderPipelineYAML: %v", err)
+	}
+	for _, want := range []string{"label: normalize", "mapping:"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("rendered YAML missing %q\n--- output ---\n%s", want, got)
+		}
+	}
+}

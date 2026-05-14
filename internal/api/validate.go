@@ -27,6 +27,12 @@ func ValidatePipeline(p *rpcv1alpha1.Pipeline, cat *catalog.Catalog) []Validatio
 	for i := range p.Spec.Processors {
 		path := fmt.Sprintf("spec.processors[%d]", i)
 		errs = append(errs, validateComponent(path, &p.Spec.Processors[i], "processors", cat)...)
+		if p.Spec.Processors[i].Label == "" {
+			errs = append(errs, ValidationError{
+				Path:    fmt.Sprintf("spec.processors[%d].label", i),
+				Message: "label is required for processors",
+			})
+		}
 	}
 	errs = append(errs, validateComponent("spec.output", &p.Spec.Output, "outputs", cat)...)
 

@@ -38,6 +38,7 @@ func pipelineWith(
 	if procType != "" {
 		p.Spec.Processors = []rpcv1alpha1.ComponentSpec{{
 			Type:   procType,
+			Label:  "test",
 			Config: runtime.RawExtension{Raw: procConfig},
 		}}
 	}
@@ -261,5 +262,22 @@ func TestValidate_NullConfig(t *testing.T) {
 	errs := api.ValidatePipeline(p, cat)
 	if len(errs) != 0 {
 		t.Errorf("expected no errors for null stdout config, got %v", errs)
+	}
+}
+
+func TestValidate_MissingProcessorLabel(t *testing.T) {
+	cat := mustLoadCatalog(t)
+	p := pipelineWith("generate", []byte(`{"mapping":"root = \"hi\""}`),
+		"mapping", []byte(`"root = content().uppercase()"`), "stdout")
+	p.Spec.Processors[0].Label = "" // explicitly clear the default "test" label
+	errs := api.ValidatePipeline(p, cat)
+	found := false
+	for _, e := range errs {
+		if e.Path == "spec.processors[0].label" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected ValidationError for missing processor label")
 	}
 }
