@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { listPipelines, deletePipeline } from '../api'
 import type { Pipeline } from '../types'
 
@@ -13,7 +13,6 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew }: Props) 
   const [pipelines, setPipelines] = useState<Pipeline[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>()
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   function load() {
     listPipelines(namespace)
@@ -27,15 +26,6 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew }: Props) 
     const id = setInterval(load, 10_000)
     return () => clearInterval(id)
   }, [namespace])
-
-  function toggleExpand(name: string, e: React.MouseEvent) {
-    e.stopPropagation()
-    setExpanded(prev => {
-      const next = new Set(prev)
-      next.has(name) ? next.delete(name) : next.add(name)
-      return next
-    })
-  }
 
   async function handleDelete(p: Pipeline, e: React.MouseEvent) {
     e.stopPropagation()
@@ -64,60 +54,42 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew }: Props) 
               <th style={thStyle}>Pod</th>
               <th style={thStyle}>Letztes Update</th>
               <th style={thStyle}></th>
-              <th style={thStyle}></th>
             </tr>
           </thead>
           <tbody>
             {pipelines.map(p => (
-              <React.Fragment key={p.metadata.name}>
-                <tr
-                  onClick={() => onViewDetail(p)}
-                  style={{ cursor: 'pointer', borderBottom: expanded.has(p.metadata.name) ? 'none' : '1px solid #eee' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#f9f9ff')}
-                  onMouseLeave={e => (e.currentTarget.style.background = '')}
-                >
-                  <td style={tdStyle}><strong>{p.metadata.name}</strong></td>
-                  <td style={tdStyle}><PhaseBadge phase={p.status?.phase} /></td>
-                  <td style={{ ...tdStyle, color: '#666', fontFamily: 'monospace', fontSize: 12 }}>
-                    {p.status?.podName ?? '—'}
-                  </td>
-                  <td style={{ ...tdStyle, color: '#666', fontSize: 12 }}>
-                    {lastUpdated(p)}
-                  </td>
-                  <td style={tdStyle}>
-                    <button
-                      onClick={e => toggleExpand(p.metadata.name, e)}
-                      title="Conditions anzeigen"
-                      style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#555' }}
-                    >
-                      {expanded.has(p.metadata.name) ? '▼' : '▶'}
-                    </button>
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    <button
-                      onClick={e => { e.stopPropagation(); onEdit(p) }}
-                      style={{ color: '#555', border: '1px solid #ccc', background: 'none',
-                               cursor: 'pointer', borderRadius: 3, fontSize: 12,
-                               padding: '1px 8px', marginRight: 6 }}
-                    >
-                      Bearbeiten
-                    </button>
-                    <button
-                      onClick={e => handleDelete(p, e)}
-                      style={{ color: '#c00', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13 }}
-                    >
-                      Löschen
-                    </button>
-                  </td>
-                </tr>
-                {expanded.has(p.metadata.name) && (
-                  <tr>
-                    <td colSpan={6} style={{ padding: '0 12px 12px 32px', background: '#fafafa', borderBottom: '1px solid #eee' }}>
-                      <ConditionsPanel conditions={p.status?.conditions} />
-                    </td>
-                  </tr>
-                )}
-              </React.Fragment>
+              <tr
+                key={p.metadata.name}
+                onClick={() => onViewDetail(p)}
+                style={{ cursor: 'pointer', borderBottom: '1px solid #eee' }}
+                onMouseEnter={e => (e.currentTarget.style.background = '#f9f9ff')}
+                onMouseLeave={e => (e.currentTarget.style.background = '')}
+              >
+                <td style={tdStyle}><strong>{p.metadata.name}</strong></td>
+                <td style={tdStyle}><PhaseBadge phase={p.status?.phase} /></td>
+                <td style={{ ...tdStyle, color: '#666', fontFamily: 'monospace', fontSize: 12 }}>
+                  {p.status?.podName ?? '—'}
+                </td>
+                <td style={{ ...tdStyle, color: '#666', fontSize: 12 }}>
+                  {lastUpdated(p)}
+                </td>
+                <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <button
+                    onClick={e => { e.stopPropagation(); onEdit(p) }}
+                    title="Bearbeiten"
+                    style={{ ...iconBtnStyle, color: '#3b82f6' }}
+                  >
+                    ✎
+                  </button>
+                  <button
+                    onClick={e => handleDelete(p, e)}
+                    title="Löschen"
+                    style={{ ...iconBtnStyle, marginLeft: 4, color: '#ef4444' }}
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
             ))}
           </tbody>
         </table>
@@ -144,56 +116,6 @@ function PhaseBadge({ phase }: { phase?: string }) {
   )
 }
 
-type Condition = NonNullable<NonNullable<Pipeline['status']>['conditions']>[number]
-
-function ConditionsPanel({ conditions }: { conditions?: Condition[] }) {
-  if (!conditions || conditions.length === 0) {
-    return <p style={{ margin: '8px 0', color: '#888', fontSize: 13 }}>Keine Conditions vorhanden.</p>
-  }
-  return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 8 }}>
-      <thead>
-        <tr style={{ color: '#666', textAlign: 'left' }}>
-          <th style={{ padding: '4px 8px', fontWeight: 600 }}>Type</th>
-          <th style={{ padding: '4px 8px', fontWeight: 600 }}>Status</th>
-          <th style={{ padding: '4px 8px', fontWeight: 600 }}>Reason</th>
-          <th style={{ padding: '4px 8px', fontWeight: 600 }}>Message</th>
-          <th style={{ padding: '4px 8px', fontWeight: 600 }}>Seit</th>
-        </tr>
-      </thead>
-      <tbody>
-        {conditions.map((c, i) => (
-          <tr key={i} style={{ borderTop: '1px solid #eee' }}>
-            <td style={{ padding: '4px 8px', fontFamily: 'monospace' }}>{c.type}</td>
-            <td style={{ padding: '4px 8px' }}>
-              <ConditionStatusBadge status={c.status} />
-            </td>
-            <td style={{ padding: '4px 8px', color: '#555' }}>{c.reason ?? '—'}</td>
-            <td style={{ padding: '4px 8px', color: '#555', maxWidth: 400, wordBreak: 'break-word' }}>
-              {c.message ?? '—'}
-            </td>
-            <td style={{ padding: '4px 8px', color: '#888', whiteSpace: 'nowrap' }}>
-              {c.lastTransitionTime
-                ? new Date(c.lastTransitionTime).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })
-                : '—'}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  )
-}
-
-function ConditionStatusBadge({ status }: { status: string }) {
-  const styles: Record<string, { color: string; label: string }> = {
-    True:    { color: '#16a34a', label: '✓ True' },
-    False:   { color: '#dc2626', label: '✗ False' },
-    Unknown: { color: '#d97706', label: '? Unknown' },
-  }
-  const s = styles[status] ?? { color: '#6b7280', label: status }
-  return <span style={{ color: s.color, fontWeight: 600 }}>{s.label}</span>
-}
-
 function lastUpdated(p: Pipeline): string {
   const times = (p.status?.conditions ?? [])
     .map(c => c.lastTransitionTime)
@@ -207,6 +129,10 @@ function lastUpdated(p: Pipeline): string {
 
 const thStyle: React.CSSProperties = { padding: '8px 12px', fontWeight: 600, fontSize: 13 }
 const tdStyle: React.CSSProperties = { padding: '10px 12px', verticalAlign: 'middle' }
+const iconBtnStyle: React.CSSProperties = {
+  border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px',
+  borderRadius: 4, lineHeight: 1, color: '#999',
+}
 const newBtnStyle: React.CSSProperties = {
   padding: '6px 16px', background: '#3b82f6', color: '#fff',
   border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 14,

@@ -10,6 +10,8 @@ interface Props {
 export function PipelineDetail({ pipeline, onEdit, onBack }: Props) {
   const [logs, setLogs] = useState<string[]>([])
   const [wsState, setWsState] = useState<'connecting' | 'open' | 'closed'>('connecting')
+  const [paused, setPaused] = useState(false)
+  const pausedRef = useRef(false)
   const logEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -19,7 +21,9 @@ export function PipelineDetail({ pipeline, onEdit, onBack }: Props) {
     const ws = new WebSocket(url)
 
     ws.onopen = () => setWsState('open')
-    ws.onmessage = e => setLogs(prev => [...prev.slice(-499), e.data as string])
+    ws.onmessage = e => {
+      if (!pausedRef.current) setLogs(prev => [...prev.slice(-499), e.data as string])
+    }
     ws.onclose = () => setWsState('closed')
     ws.onerror = () => setWsState('closed')
 
@@ -27,8 +31,13 @@ export function PipelineDetail({ pipeline, onEdit, onBack }: Props) {
   }, [pipeline.metadata.namespace, pipeline.metadata.name])
 
   useEffect(() => {
-    logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [logs])
+    if (!paused) logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [logs, paused])
+
+  function togglePause() {
+    pausedRef.current = !pausedRef.current
+    setPaused(p => !p)
+  }
 
   const p = pipeline
   return (
@@ -88,6 +97,13 @@ export function PipelineDetail({ pipeline, onEdit, onBack }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <h3 style={{ ...sectionTitleStyle, margin: 0 }}>Live-Logs</h3>
           <span style={wsStateBadgeStyle(wsState)}>{wsState}</span>
+          {wsState === 'open' && (
+            <button onClick={togglePause} title={paused ? 'Fortsetzen' : 'Pausieren'}
+              style={{ border: 'none', background: 'none', cursor: 'pointer',
+                       fontSize: 14, padding: '1px 4px' }}>
+              {paused ? '▶' : '⏸'}
+            </button>
+          )}
           {logs.length > 0 && (
             <button
               onClick={() => setLogs([])}
