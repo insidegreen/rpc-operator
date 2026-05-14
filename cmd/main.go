@@ -35,6 +35,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
+
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 	"github.com/insidegreen/rpc-operator-claude/internal/api"
 	"github.com/insidegreen/rpc-operator-claude/internal/controller"
@@ -50,6 +52,7 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(rpcv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(monitoringv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 

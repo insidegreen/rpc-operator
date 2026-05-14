@@ -21,11 +21,13 @@ import (
 	"crypto/sha256"
 	"fmt"
 
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -53,6 +55,7 @@ type PipelineReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=core,resources=pods/log,verbs=get
+// +kubebuilder:rbac:groups=monitoring.coreos.com,resources=podmonitors,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile drives the Pipeline CR towards its desired state: a ConfigMap
 // holding the rendered Redpanda Connect config, and a Pod running the connect
@@ -135,6 +138,34 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return controllerutil.SetControllerReference(&pipe, pod, r.Scheme)
 	}); err != nil {
 		return ctrl.Result{}, fmt.Errorf("apply pod: %w", err)
+	}
+
+	// PodMonitor: auto-create per-pipeline scrape config.
+	// Graceful: if the monitoring CRD is not installed, log and continue.
+	pm := &monitoringv1.PodMonitor{ObjectMeta: metav1.ObjectMeta{
+		Name:      pipe.Name,
+		Namespace: pipe.Namespace,
+	}}
+	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, pm, func() error {
+		pm.Spec = monitoringv1.PodMonitorSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"rpc.operator.io/pipeline": pipe.Name,
+				},
+			},
+			PodMetricsEndpoints: []monitoringv1.PodMetricsEndpoint{{
+				Port:     ptr.To("http"),
+				Path:     "/metrics",
+				Interval: monitoringv1.Duration("15s"),
+			}},
+		}
+		return controllerutil.SetControllerReference(&pipe, pm, r.Scheme)
+	}); err != nil {
+		if apimeta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) {
+			log.V(1).Info("PodMonitor CRD not installed; skipping auto-scrape setup")
+		} else {
+			return ctrl.Result{}, fmt.Errorf("apply podmonitor: %w", err)
+		}
 	}
 
 	desired := derivePhase(pod)
@@ -263,6 +294,7 @@ func (r *PipelineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&rpcv1alpha1.Pipeline{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Pod{}).
+		Owns(&monitoringv1.PodMonitor{}).
 		Named("pipeline").
 		Complete(r)
 }

@@ -31,6 +31,18 @@ rules:
   verbs:
   - get
 - apiGroups:
+  - monitoring.coreos.com
+  resources:
+  - podmonitors
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - rpc.operator.io
   resources:
   - pipelines
