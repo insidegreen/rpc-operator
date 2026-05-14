@@ -23,6 +23,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -136,12 +137,21 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	desired := derivePhase(pod)
-	if pipe.Status.Phase != desired ||
+	desiredCond := deriveCondition(pod, desired)
+
+	existingCond := apimeta.FindStatusCondition(pipe.Status.Conditions, "Ready")
+	condChanged := existingCond == nil ||
+		existingCond.Status != desiredCond.Status ||
+		existingCond.Reason != desiredCond.Reason ||
+		existingCond.Message != desiredCond.Message
+
+	if condChanged || pipe.Status.Phase != desired ||
 		pipe.Status.PodName != pod.Name ||
 		pipe.Status.ObservedGeneration != pipe.Generation {
 		pipe.Status.Phase = desired
 		pipe.Status.PodName = pod.Name
 		pipe.Status.ObservedGeneration = pipe.Generation
+		apimeta.SetStatusCondition(&pipe.Status.Conditions, desiredCond)
 		if err := r.Status().Update(ctx, &pipe); err != nil {
 			if apierrors.IsConflict(err) {
 				return ctrl.Result{Requeue: true}, nil
@@ -166,19 +176,80 @@ func derivePhase(pod *corev1.Pod) rpcv1alpha1.PipelinePhase {
 	}
 }
 
+// containerWaitReason returns the first non-empty Waiting.Reason from ContainerStatuses,
+// or an empty string if all containers are running/terminated.
+func containerWaitReason(pod *corev1.Pod) string {
+	for _, cs := range pod.Status.ContainerStatuses {
+		if cs.State.Waiting != nil && cs.State.Waiting.Reason != "" {
+			return cs.State.Waiting.Reason
+		}
+	}
+	return ""
+}
+
+// deriveCondition computes the desired Ready condition based on the pod's current phase
+// and container wait reason. LastTransitionTime is intentionally not set here —
+// apimeta.SetStatusCondition handles it (only updates when Status changes).
+func deriveCondition(pod *corev1.Pod, phase rpcv1alpha1.PipelinePhase) metav1.Condition {
+	reason := containerWaitReason(pod)
+	switch {
+	case reason == "ImagePullBackOff" || reason == "ErrImagePull":
+		return metav1.Condition{
+			Type:    "Ready",
+			Status:  metav1.ConditionFalse,
+			Reason:  "ImagePullBackOff",
+			Message: "Container image cannot be pulled: " + reason,
+		}
+	case reason == "CrashLoopBackOff":
+		return metav1.Condition{
+			Type:    "Ready",
+			Status:  metav1.ConditionFalse,
+			Reason:  "CrashLoopBackOff",
+			Message: "Container is crash-looping",
+		}
+	case phase == rpcv1alpha1.PhaseRunning:
+		return metav1.Condition{
+			Type:    "Ready",
+			Status:  metav1.ConditionTrue,
+			Reason:  "Running",
+			Message: "Pipeline pod is running",
+		}
+	case phase == rpcv1alpha1.PhaseStopped:
+		return metav1.Condition{
+			Type:    "Ready",
+			Status:  metav1.ConditionFalse,
+			Reason:  "Completed",
+			Message: "Pipeline pod has completed",
+		}
+	case phase == rpcv1alpha1.PhaseFailed:
+		return metav1.Condition{
+			Type:    "Ready",
+			Status:  metav1.ConditionFalse,
+			Reason:  "PodFailed",
+			Message: "Pipeline pod has failed",
+		}
+	default:
+		return metav1.Condition{
+			Type:    "Ready",
+			Status:  metav1.ConditionUnknown,
+			Reason:  "Pending",
+			Message: "Pipeline pod is pending",
+		}
+	}
+}
+
 func (r *PipelineReconciler) markFailed(
 	ctx context.Context,
 	pipe *rpcv1alpha1.Pipeline,
 	reason, msg string,
 ) (ctrl.Result, error) {
 	pipe.Status.Phase = rpcv1alpha1.PhaseFailed
-	pipe.Status.Conditions = []metav1.Condition{{
-		Type:               "Ready",
-		Status:             metav1.ConditionFalse,
-		Reason:             reason,
-		Message:            msg,
-		LastTransitionTime: metav1.Now(),
-	}}
+	apimeta.SetStatusCondition(&pipe.Status.Conditions, metav1.Condition{
+		Type:    "Ready",
+		Status:  metav1.ConditionFalse,
+		Reason:  reason,
+		Message: msg,
+	})
 	if err := r.Status().Update(ctx, pipe); err != nil {
 		return ctrl.Result{}, err
 	}
