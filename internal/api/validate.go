@@ -54,7 +54,43 @@ func validateComponent(
 			),
 		}}
 	}
-	return validateConfig(path+".config", c.Config.Raw, comp.ConfigSchema)
+
+	raw := c.Config.Raw
+
+	if len(comp.CompositeFields) > 0 {
+		// Pattern B: config itself is an array (for_each, fallback) — configSchema is
+		// empty and does not apply to arrays. Rely on the render dry-run below.
+		if len(comp.CompositeFields) == 1 && comp.CompositeFields[0].Field == "" {
+			return nil
+		}
+		// Pattern A: config is an object; strip composite sub-component fields before
+		// validating scalar fields against configSchema (additionalProperties: false).
+		raw = stripCompositeFields(raw, comp.CompositeFields)
+	}
+
+	return validateConfig(path+".config", raw, comp.ConfigSchema)
+}
+
+// stripCompositeFields removes composite sub-component fields from a JSON object so
+// that configSchema (which only describes scalar fields) can validate the remainder.
+func stripCompositeFields(raw []byte, fields []catalog.CompositeField) []byte {
+	if len(raw) == 0 || string(raw) == "null" {
+		return []byte("{}")
+	}
+	var m map[string]any
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return raw // let validateConfig report the parse error
+	}
+	for _, cf := range fields {
+		if cf.Field != "" {
+			delete(m, cf.Field)
+		}
+	}
+	stripped, err := json.Marshal(m)
+	if err != nil {
+		return raw
+	}
+	return stripped
 }
 
 func validateConfig(path string, raw []byte, schema json.RawMessage) []ValidationError {

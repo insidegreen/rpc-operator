@@ -169,6 +169,36 @@ func TestValidate_EmptyProcessors(t *testing.T) {
 	}
 }
 
+func TestValidate_BranchComposite(t *testing.T) {
+	cat := mustLoadCatalog(t)
+	p := pipelineWith(
+		"generate", []byte(`{"mapping":"root = \"hi\"","count":1}`),
+		"branch", []byte(`{
+			"request_map": "root = this",
+			"processors": [{"type": "mapping", "config": "root = content().uppercase()"}],
+			"result_map": "root = this"
+		}`),
+		"stdout",
+	)
+	errs := api.ValidatePipeline(p, cat)
+	if len(errs) != 0 {
+		t.Errorf("expected no errors for branch composite, got %v", errs)
+	}
+}
+
+func TestValidate_ForEachComposite(t *testing.T) {
+	cat := mustLoadCatalog(t)
+	p := pipelineWith(
+		"generate", []byte(`{"mapping":"root = \"hi\"","count":1}`),
+		"for_each", []byte(`[{"type":"mapping","config":"root = content().uppercase()"}]`),
+		"stdout",
+	)
+	errs := api.ValidatePipeline(p, cat)
+	if len(errs) != 0 {
+		t.Errorf("expected no errors for for_each composite, got %v", errs)
+	}
+}
+
 func TestValidate_NullConfig(t *testing.T) {
 	cat := mustLoadCatalog(t)
 	// stdout accepts an empty/null config
