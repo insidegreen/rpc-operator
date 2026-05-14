@@ -31,3 +31,10 @@ go.work
 
 # Local Claude Code per-developer state (permissions, etc.)
 .claude/settings.local.json
+
+# UI build output — placeholder index.html is committed; rest is generated
+internal/api/static/*
+!internal/api/static/index.html
+
+# Node modules
+ui/node_modules/

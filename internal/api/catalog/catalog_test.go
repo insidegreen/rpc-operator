@@ -7,14 +7,14 @@ import (
 	"github.com/insidegreen/rpc-operator-claude/internal/api/catalog"
 )
 
-func TestCatalog_LoadsThreeComponents(t *testing.T) {
+func TestCatalog_LoadsComponents(t *testing.T) {
 	cat, err := catalog.Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
 	all := cat.All()
-	if len(all) != 3 {
-		t.Errorf("expected 3 components, got %d", len(all))
+	if len(all) < 3 {
+		t.Errorf("expected at least 3 components, got %d", len(all))
 	}
 }
 

@@ -11,6 +11,7 @@ package api
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"net/http"
 	"time"
 
@@ -90,4 +91,11 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/pipelines/validate", s.handleValidate)
 	mux.HandleFunc("GET /api/v1/catalog", s.handleCatalogList)
 	mux.HandleFunc("GET /api/v1/catalog/{category}/{name}", s.handleCatalogGet)
+
+	// Serve the embedded SPA. Must come after all /api/v1/ routes (catch-all).
+	sub, err := fs.Sub(StaticFiles, "static")
+	if err != nil {
+		panic("static embed broken: " + err.Error())
+	}
+	mux.Handle("/", http.FileServerFS(sub))
 }

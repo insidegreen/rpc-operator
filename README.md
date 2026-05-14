@@ -1,8 +1,102 @@
-# rpc-operator
-// TODO(user): Add simple overview of use/purpose
+# RPC Operator
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+Kubernetes Operator für [Redpanda Connect](https://docs.redpanda.com/redpanda-connect/) Pipelines.
+Data Engineers konfigurieren Pipelines visuell oder als YAML über eine eingebettete Web-UI
+und deployen sie per Klick in einen Kubernetes-Cluster.
+
+## Local Development
+
+### Voraussetzungen
+
+| Tool | Version |
+|---|---|
+| Go | ≥ 1.24 |
+| Node.js | ≥ 20 (für UI-Build) |
+| kubectl | ≥ 1.11 |
+| Kubernetes-Cluster | ≥ 1.11 (kubeconfig konfiguriert) |
+
+### Schnellstart
+
+```bash
+# 1. CRDs im Cluster installieren (einmalig)
+make install
+
+# 2. UI bauen
+make ui-build
+
+# 3. Operator starten — nutzt den aktuellen kubeconfig-Context
+go run ./cmd/main.go
+```
+
+Der Operator verbindet sich mit dem aktiven kubeconfig-Context.
+Die Web-UI ist danach unter **http://localhost:8082** erreichbar.
+
+```bash
+# Context prüfen / wechseln
+kubectl config current-context
+kubectl config use-context <context-name>
+```
+
+### UI-Entwicklung mit Hot-Reload
+
+Für Frontend-Änderungen reicht ein separater Vite-Dev-Server — kein Neustart
+des Operators nötig. Vite proxied `/api`-Requests automatisch an `:8082`.
+
+```bash
+# Terminal 1 — Operator
+go run ./cmd/main.go
+
+# Terminal 2 — Vite Dev Server (Hot-Reload)
+make ui-dev
+# → http://localhost:5173
+```
+
+### Tests ausführen
+
+```bash
+# Alle Go-Tests
+make test
+
+# Nur ein Paket
+go test ./internal/render/...
+
+# Linter
+make lint
+
+# TypeScript Type-Check
+cd ui && npx tsc --noEmit
+```
+
+### Pipeline manuell testen
+
+```bash
+# Deployte Pipelines anzeigen
+kubectl get pipeline.rpc.operator.io -n rpc-operator-poc
+
+# Pods der Pipelines
+kubectl get pods -n rpc-operator-poc
+
+# Logs einer Pipeline
+kubectl logs -n rpc-operator-poc <pod-name>
+
+# Pipeline löschen
+kubectl delete pipeline.rpc.operator.io <name> -n rpc-operator-poc
+```
+
+### Nützliche Make-Targets
+
+```bash
+make help          # Alle Targets mit Beschreibung
+make ui-build      # React-UI bauen (→ internal/api/static/)
+make ui-dev        # Vite Dev Server starten
+make build         # Go-Binary inkl. UI bauen (→ bin/manager)
+make test          # Go-Tests ausführen
+make lint          # golangci-lint
+make install       # CRDs im Cluster installieren
+make uninstall     # CRDs aus Cluster entfernen
+```
+
+---
 
 ## Getting Started
 

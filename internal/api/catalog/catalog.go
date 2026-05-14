@@ -13,15 +13,26 @@ import (
 //go:embed data/*/*.json
 var dataFS embed.FS
 
+// CompositeField describes a field within a composite component's config that itself
+// contains one or more nested ComponentSpecs (inputs, processors, or outputs).
+// Field="" means the config value itself is the array (Pattern B: for_each, fallback).
+type CompositeField struct {
+	Field string `json:"field"` // field name in config; "" = config is directly the array
+	Kind  string `json:"kind"`  // "inputs" | "processors" | "outputs"
+	Multi bool   `json:"multi"` // true = array, false = single ComponentSpec
+}
+
 // Component describes one Redpanda Connect component available in the catalog.
+// BodyKind values: "object" (RJSF form), "scalar" (textarea), "composite" (nested editors).
 type Component struct {
-	Name          string          `json:"name"`
-	Category      string          `json:"category"`
-	Status        string          `json:"status"`
-	Summary       string          `json:"summary"`
-	BodyKind      string          `json:"bodyKind"`
-	ReplicaSafety string          `json:"replicaSafety"`
-	ConfigSchema  json.RawMessage `json:"configSchema"`
+	Name            string           `json:"name"`
+	Category        string           `json:"category"`
+	Status          string           `json:"status"`
+	Summary         string           `json:"summary"`
+	BodyKind        string           `json:"bodyKind"`
+	ReplicaSafety   string           `json:"replicaSafety"`
+	ConfigSchema    json.RawMessage  `json:"configSchema"`
+	CompositeFields []CompositeField `json:"compositeFields,omitempty"`
 }
 
 // Catalog holds the loaded component entries indexed for fast lookup.

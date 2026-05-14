@@ -1,4 +1,15 @@
-# Build the manager binary
+# --- Build UI ---
+FROM node:20-alpine AS ui-builder
+WORKDIR /ui
+COPY ui/package.json ui/package-lock.json ./
+RUN npm ci
+COPY ui/ .
+RUN npm run build
+# Vite outDir = ../internal/api/static (relative to ui/), so the built files
+# land at /ui/../internal/api/static in the container, i.e. /internal/api/static.
+# We copy from the default dist/ location explicitly below.
+
+# --- Build manager binary ---
 FROM golang:1.25 AS builder
 ARG TARGETOS
 ARG TARGETARCH
@@ -13,6 +24,8 @@ RUN go mod download
 
 # Copy the Go source (relies on .dockerignore to filter)
 COPY . .
+# Overlay the freshly-built UI assets over the committed placeholder
+COPY --from=ui-builder /ui/dist ./internal/api/static/
 
 # Build
 # the GOARCH has no default value to allow the binary to be built according to the host where the command

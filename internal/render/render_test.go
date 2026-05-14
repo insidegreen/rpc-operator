@@ -95,6 +95,148 @@ func TestRenderPipelineYAML_NullConfig(t *testing.T) {
 	}
 }
 
+func TestRenderPipelineYAML_BrokerOutput(t *testing.T) {
+	spec := &rpcv1alpha1.PipelineSpec{
+		Input: rpcv1alpha1.ComponentSpec{
+			Type:   "generate",
+			Config: runtime.RawExtension{Raw: []byte(`{"mapping":"root = \"hi\"","count":1}`)},
+		},
+		Output: rpcv1alpha1.ComponentSpec{
+			Type: "broker",
+			Config: runtime.RawExtension{Raw: []byte(`{
+				"copies": 1,
+				"outputs": [
+					{"type": "stdout", "config": {}},
+					{"type": "stdout", "config": {}}
+				]
+			}`)},
+		},
+	}
+	got, err := render.RenderPipelineYAML(spec)
+	if err != nil {
+		t.Fatalf("RenderPipelineYAML: %v", err)
+	}
+	for _, want := range []string{"broker:", "outputs:", "- stdout: {}"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "type: stdout") {
+		t.Errorf("ComponentSpec format leaked into RPC YAML\n%s", got)
+	}
+}
+
+func TestRenderPipelineYAML_BranchProcessor(t *testing.T) {
+	spec := &rpcv1alpha1.PipelineSpec{
+		Input: rpcv1alpha1.ComponentSpec{
+			Type:   "generate",
+			Config: runtime.RawExtension{Raw: []byte(`{"mapping":"root = \"hi\"","count":1}`)},
+		},
+		Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+		Processors: []rpcv1alpha1.ComponentSpec{{
+			Type: "branch",
+			Config: runtime.RawExtension{Raw: []byte(`{
+				"request_map": "root = this",
+				"processors": [{"type": "mapping", "config": "root = content().uppercase()"}],
+				"result_map": "root = this"
+			}`)},
+		}},
+	}
+	got, err := render.RenderPipelineYAML(spec)
+	if err != nil {
+		t.Fatalf("RenderPipelineYAML: %v", err)
+	}
+	for _, want := range []string{"branch:", "request_map:", "processors:", "- mapping:", "result_map:"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "type: mapping") {
+		t.Errorf("ComponentSpec format leaked into RPC YAML\n%s", got)
+	}
+}
+
+func TestRenderPipelineYAML_ForEachProcessor(t *testing.T) {
+	spec := &rpcv1alpha1.PipelineSpec{
+		Input: rpcv1alpha1.ComponentSpec{
+			Type:   "generate",
+			Config: runtime.RawExtension{Raw: []byte(`{"mapping":"root = \"hi\"","count":1}`)},
+		},
+		Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+		Processors: []rpcv1alpha1.ComponentSpec{{
+			Type:   "for_each",
+			Config: runtime.RawExtension{Raw: []byte(`[{"type":"mapping","config":"root = content().uppercase()"}]`)},
+		}},
+	}
+	got, err := render.RenderPipelineYAML(spec)
+	if err != nil {
+		t.Fatalf("RenderPipelineYAML: %v", err)
+	}
+	for _, want := range []string{"for_each:", "- mapping:"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "type: mapping") {
+		t.Errorf("ComponentSpec format leaked into RPC YAML\n%s", got)
+	}
+}
+
+func TestRenderPipelineYAML_FallbackOutput(t *testing.T) {
+	spec := &rpcv1alpha1.PipelineSpec{
+		Input: rpcv1alpha1.ComponentSpec{
+			Type:   "generate",
+			Config: runtime.RawExtension{Raw: []byte(`{"mapping":"root = \"hi\"","count":1}`)},
+		},
+		Output: rpcv1alpha1.ComponentSpec{
+			Type:   "fallback",
+			Config: runtime.RawExtension{Raw: []byte(`[{"type":"stdout","config":{}},{"type":"stdout","config":{}}]`)},
+		},
+	}
+	got, err := render.RenderPipelineYAML(spec)
+	if err != nil {
+		t.Fatalf("RenderPipelineYAML: %v", err)
+	}
+	for _, want := range []string{"fallback:", "- stdout: {}"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %q\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "type: stdout") {
+		t.Errorf("ComponentSpec format leaked into RPC YAML\n%s", got)
+	}
+}
+
+func TestRenderPipelineYAML_NestedComposite(t *testing.T) {
+	// broker output containing a sequence input-like structure inside another broker
+	// Tests 2-level nesting
+	spec := &rpcv1alpha1.PipelineSpec{
+		Input: rpcv1alpha1.ComponentSpec{
+			Type:   "generate",
+			Config: runtime.RawExtension{Raw: []byte(`{"mapping":"root = \"hi\"","count":1}`)},
+		},
+		Output: rpcv1alpha1.ComponentSpec{
+			Type: "broker",
+			Config: runtime.RawExtension{Raw: []byte(`{
+				"outputs": [
+					{"type": "stdout", "config": {}},
+					{"type": "broker", "config": {"outputs": [{"type": "stdout", "config": {}}]}}
+				]
+			}`)},
+		},
+	}
+	got, err := render.RenderPipelineYAML(spec)
+	if err != nil {
+		t.Fatalf("RenderPipelineYAML: %v", err)
+	}
+	if strings.Contains(got, "type: stdout") || strings.Contains(got, "type: broker") {
+		t.Errorf("ComponentSpec format leaked into nested RPC YAML\n%s", got)
+	}
+	if !strings.Contains(got, "broker:") {
+		t.Errorf("missing broker: in output\n%s", got)
+	}
+}
+
 func TestRenderPipelineYAML_InvalidJSON(t *testing.T) {
 	spec := &rpcv1alpha1.PipelineSpec{
 		Input: rpcv1alpha1.ComponentSpec{

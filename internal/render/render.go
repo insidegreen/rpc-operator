@@ -64,5 +64,86 @@ func componentBlock(c *rpcv1alpha1.ComponentSpec) (map[string]any, error) {
 			return nil, fmt.Errorf("config not valid JSON: %w", err)
 		}
 	}
+	// Recursively convert any embedded ComponentSpec objects/arrays to RPC-native format.
+	cfg = renderCompositeFields(cfg)
 	return map[string]any{c.Type: cfg}, nil
+}
+
+// renderCompositeFields traverses a config value recursively.
+// When it finds a ComponentSpec array ([]any where every element has exactly
+// "type" string + optional "config") or a single ComponentSpec map, it converts
+// them to RPC-native format {typeName: configValue}.
+// This handles Pattern A (named field), Pattern B (direct array), and Pattern C
+// (case-structures with nested output/processors fields) without catalog imports.
+func renderCompositeFields(v any) any {
+	switch val := v.(type) {
+	case []any:
+		if looksLikeComponentSpecArray(val) {
+			return componentSpecArrayToRPC(val)
+		}
+		out := make([]any, len(val))
+		for i, item := range val {
+			out[i] = renderCompositeFields(item)
+		}
+		return out
+	case map[string]any:
+		if looksLikeComponentSpec(val) {
+			return componentSpecToRPCMap(val)
+		}
+		out := make(map[string]any, len(val))
+		for k, fv := range val {
+			out[k] = renderCompositeFields(fv)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+// looksLikeComponentSpecArray returns true when val is a non-empty []any where
+// every element passes looksLikeComponentSpec.
+func looksLikeComponentSpecArray(val []any) bool {
+	if len(val) == 0 {
+		return false
+	}
+	for _, item := range val {
+		m, ok := item.(map[string]any)
+		if !ok || !looksLikeComponentSpec(m) {
+			return false
+		}
+	}
+	return true
+}
+
+// looksLikeComponentSpec returns true when m contains exactly the keys "type"
+// (non-empty string) and optionally "config" — no other keys allowed.
+// This strict signature prevents false-positives on normal config maps.
+func looksLikeComponentSpec(m map[string]any) bool {
+	t, ok := m["type"].(string)
+	if !ok || t == "" {
+		return false
+	}
+	for k := range m {
+		if k != "type" && k != "config" {
+			return false
+		}
+	}
+	return true
+}
+
+func componentSpecArrayToRPC(arr []any) []any {
+	out := make([]any, len(arr))
+	for i, item := range arr {
+		out[i] = componentSpecToRPCMap(item.(map[string]any))
+	}
+	return out
+}
+
+func componentSpecToRPCMap(m map[string]any) map[string]any {
+	typeName := m["type"].(string)
+	cfg := m["config"]
+	if cfg == nil {
+		cfg = map[string]any{}
+	}
+	return map[string]any{typeName: renderCompositeFields(cfg)}
 }

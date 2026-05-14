@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestHandlerCatalog_ListReturnsThreeItems(t *testing.T) {
+func TestHandlerCatalog_ListReturnsAllItems(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close()
 
@@ -24,8 +24,10 @@ func TestHandlerCatalog_ListReturnsThreeItems(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if len(result.Items) != 3 {
-		t.Errorf("expected 3 items, got %d", len(result.Items))
+	// 3 originals (generate, mapping, stdout) + 6 composite (broker/input, sequence,
+	// broker/output, fallback, branch, for_each) = 9
+	if len(result.Items) != 9 {
+		t.Errorf("expected 9 items, got %d", len(result.Items))
 	}
 }
 
@@ -64,7 +66,10 @@ func TestHandlerCatalog_GetNotFound(t *testing.T) {
 	}
 }
 
-func TestHandlerCatalog_WrongMethodReturns405(t *testing.T) {
+// TestHandlerCatalog_WrongMethodReturnsCatchAll documents that with the SPA
+// catch-all handler in place, a POST to the catalog path hits the static file
+// server (no matching file) and returns 404, not 405.
+func TestHandlerCatalog_WrongMethodReturnsCatchAll(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close()
 
@@ -74,7 +79,7 @@ func TestHandlerCatalog_WrongMethodReturns405(t *testing.T) {
 		t.Fatalf("POST catalog: %v", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusMethodNotAllowed {
-		t.Errorf("expected 405, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("expected 404 (static catch-all), got %d", resp.StatusCode)
 	}
 }

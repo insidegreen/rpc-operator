@@ -106,10 +106,20 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 lint-config: golangci-lint ## Verify golangci-lint linter configuration
 	"$(GOLANGCI_LINT)" config verify
 
+##@ UI
+
+.PHONY: ui-build
+ui-build: ## Build React UI (output: internal/api/static/).
+	cd ui && npm ci && npm run build
+
+.PHONY: ui-dev
+ui-dev: ## Start Vite dev server (proxies /api → localhost:8082).
+	cd ui && npm run dev
+
 ##@ Build
 
 .PHONY: build
-build: manifests generate fmt vet ## Build manager binary.
+build: manifests generate fmt vet ui-build ## Build manager binary (UI included).
 	go build -o bin/manager cmd/main.go
 
 .PHONY: run
