@@ -2,7 +2,11 @@ import yaml from 'js-yaml'
 import type { PipelineSpec } from './types'
 
 export function specToYaml(spec: PipelineSpec): string {
-  return yaml.dump(spec, { lineWidth: 120, quotingType: '"' })
+  const { input, processors, output } = spec
+  const pipelineOnly: Record<string, unknown> = { input }
+  if (processors && processors.length > 0) pipelineOnly.processors = processors
+  pipelineOnly.output = output
+  return yaml.dump(pipelineOnly, { lineWidth: 120, quotingType: '"' })
 }
 
 export function yamlToSpec(text: string): PipelineSpec {
