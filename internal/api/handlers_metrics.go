@@ -33,10 +33,10 @@ var knownQueries = map[string]struct {
 	tpl  string
 	unit string
 }{
-	"throughput":           {`rate(redpanda_connect_output_sent{pod="%s"}[1m])`, "msg/s"},
-	"error_rate":           {`rate(redpanda_connect_output_error{pod="%s"}[1m])`, "msg/s"},
-	"input_rate":           {`rate(redpanda_connect_input_received{pod="%s"}[1m])`, "msg/s"},
-	"processor_error_rate": {`rate(redpanda_connect_processor_error{pod="%s"}[1m])`, "msg/s"},
+	"throughput":           {`rate(output_sent{pod="%s"}[1m])`, "msg/s"},
+	"error_rate":           {`rate(output_error{pod="%s"}[1m])`, "msg/s"},
+	"input_rate":           {`rate(input_received{pod="%s"}[1m])`, "msg/s"},
+	"processor_error_rate": {`rate(processor_error{pod="%s"}[1m])`, "msg/s"},
 }
 
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
