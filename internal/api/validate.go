@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
+	"k8s.io/apimachinery/pkg/runtime"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 	"github.com/insidegreen/rpc-operator-claude/internal/api/catalog"
@@ -55,20 +56,77 @@ func validateComponent(
 		}}
 	}
 
+	var errs []ValidationError
 	raw := c.Config.Raw
 
 	if len(comp.CompositeFields) > 0 {
-		// Pattern B: config itself is an array (for_each, fallback) — configSchema is
-		// empty and does not apply to arrays. Rely on the render dry-run below.
-		if len(comp.CompositeFields) == 1 && comp.CompositeFields[0].Field == "" {
-			return nil
+		isDirectArray := len(comp.CompositeFields) == 1 && comp.CompositeFields[0].Field == ""
+		if !isDirectArray {
+			// Pattern A: strip composite fields before validating scalar fields.
+			errs = append(errs, validateConfig(path+".config", stripCompositeFields(raw, comp.CompositeFields), comp.ConfigSchema)...)
 		}
-		// Pattern A: config is an object; strip composite sub-component fields before
-		// validating scalar fields against configSchema (additionalProperties: false).
-		raw = stripCompositeFields(raw, comp.CompositeFields)
+		// Recursively validate every nested ComponentSpec in all composite fields.
+		errs = append(errs, validateNestedComponents(path+".config", raw, comp.CompositeFields, cat)...)
+	} else {
+		errs = validateConfig(path+".config", raw, comp.ConfigSchema)
 	}
 
-	return validateConfig(path+".config", raw, comp.ConfigSchema)
+	return errs
+}
+
+// validateNestedComponents recurses into composite fields and validates each
+// nested ComponentSpec (type + config) against the catalog.
+func validateNestedComponents(path string, raw []byte, fields []catalog.CompositeField, cat *catalog.Catalog) []ValidationError {
+	var errs []ValidationError
+
+	// nestedSpec is the wire format of a ComponentSpec inside a composite field.
+	type nestedSpec struct {
+		Type   string          `json:"type"`
+		Config json.RawMessage `json:"config"`
+	}
+
+	parseItems := func(data []byte) ([]nestedSpec, bool) {
+		var items []nestedSpec
+		if err := json.Unmarshal(data, &items); err != nil {
+			return nil, false
+		}
+		return items, true
+	}
+
+	for _, cf := range fields {
+		var itemBytes []byte
+		if cf.Field == "" {
+			// Pattern B: raw itself is the array.
+			itemBytes = raw
+		} else {
+			// Pattern A: extract the named field from the config object.
+			var m map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &m); err != nil {
+				continue
+			}
+			itemBytes = m[cf.Field]
+		}
+
+		items, ok := parseItems(itemBytes)
+		if !ok {
+			continue
+		}
+
+		fieldPath := path
+		if cf.Field != "" {
+			fieldPath = path + "." + cf.Field
+		}
+
+		for i, item := range items {
+			cs := &rpcv1alpha1.ComponentSpec{
+				Type:   item.Type,
+				Config: runtime.RawExtension{Raw: item.Config},
+			}
+			errs = append(errs, validateComponent(fmt.Sprintf("%s[%d]", fieldPath, i), cs, cf.Kind, cat)...)
+		}
+	}
+
+	return errs
 }
 
 // stripCompositeFields removes composite sub-component fields from a JSON object so

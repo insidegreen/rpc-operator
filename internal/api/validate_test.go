@@ -199,6 +199,56 @@ func TestValidate_ForEachComposite(t *testing.T) {
 	}
 }
 
+func TestValidate_BranchUnknownNestedProcessor(t *testing.T) {
+	cat := mustLoadCatalog(t)
+	p := pipelineWith(
+		"generate", []byte(`{"mapping":"root = \"hi\"","count":1}`),
+		"branch", []byte(`{
+			"request_map": "root = this",
+			"processors": [{"type": "no-such-processor", "config": {}}],
+			"result_map": "root = this"
+		}`),
+		"stdout",
+	)
+	errs := api.ValidatePipeline(p, cat)
+	if len(errs) == 0 {
+		t.Fatal("expected error for unknown nested processor type")
+	}
+	found := false
+	for _, e := range errs {
+		if e.Path == "spec.processors[0].config.processors[0].type" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected error at nested processor path, got %v", errs)
+	}
+}
+
+func TestValidate_ForEachUnknownNestedProcessor(t *testing.T) {
+	cat := mustLoadCatalog(t)
+	p := pipelineWith(
+		"generate", []byte(`{"mapping":"root = \"hi\"","count":1}`),
+		"for_each", []byte(`[{"type":"no-such-processor","config":{}}]`),
+		"stdout",
+	)
+	errs := api.ValidatePipeline(p, cat)
+	if len(errs) == 0 {
+		t.Fatal("expected error for unknown nested processor in for_each")
+	}
+	found := false
+	for _, e := range errs {
+		if e.Path == "spec.processors[0].config[0].type" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected error at nested for_each path, got %v", errs)
+	}
+}
+
 func TestValidate_NullConfig(t *testing.T) {
 	cat := mustLoadCatalog(t)
 	// stdout accepts an empty/null config
