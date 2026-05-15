@@ -39,6 +39,7 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew, onNewRaw 
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const [deletingNames, setDeletingNames] = useState<Set<string>>(new Set())
 
   function handleSort(key: SortKey) {
     if (key === sortKey) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -72,8 +73,15 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew, onNewRaw 
   async function handleDelete(p: Pipeline, e: React.MouseEvent) {
     e.stopPropagation()
     if (!confirm(`Pipeline "${p.metadata.name}" löschen?`)) return
-    await deletePipeline(p.metadata.namespace, p.metadata.name).catch(console.error)
-    load()
+    setDeletingNames(prev => new Set(prev).add(p.metadata.name))
+    try {
+      await deletePipeline(p.metadata.namespace, p.metadata.name)
+      load()
+    } catch (err) {
+      console.error(err)
+      setDeletingNames(prev => { const s = new Set(prev); s.delete(p.metadata.name); return s })
+      load()
+    }
   }
 
   if (loading) return <p style={{ color: '#888' }}>Lade Pipelines…</p>
@@ -116,40 +124,45 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew, onNewRaw 
             </tr>
           </thead>
           <tbody>
-            {sortPipelines(pipelines, sortKey, sortDir).map(p => (
-              <tr
-                key={p.metadata.name}
-                onClick={() => onViewDetail(p)}
-                style={{ cursor: 'pointer', borderBottom: '1px solid #eee' }}
-                onMouseEnter={e => (e.currentTarget.style.background = '#f9f9ff')}
-                onMouseLeave={e => (e.currentTarget.style.background = '')}
-              >
-                <td style={tdStyle}><strong>{p.metadata.name}</strong></td>
-                <td style={tdStyle}><PhaseBadge phase={p.status?.phase} /></td>
-                <td style={{ ...tdStyle, color: '#666', fontFamily: 'monospace', fontSize: 12 }}>
-                  {p.status?.podName ?? '—'}
-                </td>
-                <td style={{ ...tdStyle, color: '#666', fontSize: 12 }}>
-                  {lastUpdated(p)}
-                </td>
-                <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <button
-                    onClick={e => { e.stopPropagation(); onEdit(p) }}
-                    title="Bearbeiten"
-                    style={{ ...iconBtnStyle, color: '#3b82f6' }}
-                  >
-                    ✎
-                  </button>
-                  <button
-                    onClick={e => handleDelete(p, e)}
-                    title="Löschen"
-                    style={{ ...iconBtnStyle, marginLeft: 4, color: '#ef4444' }}
-                  >
-                    ✕
-                  </button>
-                </td>
-              </tr>
-            ))}
+            {sortPipelines(pipelines, sortKey, sortDir).map(p => {
+              const isDeleting = deletingNames.has(p.metadata.name)
+              return (
+                <tr
+                  key={p.metadata.name}
+                  onClick={isDeleting ? undefined : () => onViewDetail(p)}
+                  style={{ cursor: isDeleting ? 'default' : 'pointer', borderBottom: '1px solid #eee', opacity: isDeleting ? 0.6 : 1 }}
+                  onMouseEnter={isDeleting ? undefined : e => (e.currentTarget.style.background = '#f9f9ff')}
+                  onMouseLeave={isDeleting ? undefined : e => (e.currentTarget.style.background = '')}
+                >
+                  <td style={tdStyle}><strong>{p.metadata.name}</strong></td>
+                  <td style={tdStyle}><PhaseBadge phase={isDeleting ? 'Deleting' : p.status?.phase} /></td>
+                  <td style={{ ...tdStyle, color: '#666', fontFamily: 'monospace', fontSize: 12 }}>
+                    {p.status?.podName ?? '—'}
+                  </td>
+                  <td style={{ ...tdStyle, color: '#666', fontSize: 12 }}>
+                    {lastUpdated(p)}
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <button
+                      onClick={e => { e.stopPropagation(); onEdit(p) }}
+                      title="Bearbeiten"
+                      disabled={isDeleting}
+                      style={{ ...iconBtnStyle, color: isDeleting ? '#ccc' : '#3b82f6' }}
+                    >
+                      ✎
+                    </button>
+                    <button
+                      onClick={e => handleDelete(p, e)}
+                      title="Löschen"
+                      disabled={isDeleting}
+                      style={{ ...iconBtnStyle, marginLeft: 4, color: isDeleting ? '#ccc' : '#ef4444' }}
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       )}
@@ -159,10 +172,11 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew, onNewRaw 
 
 function PhaseBadge({ phase }: { phase?: string }) {
   const colors: Record<string, { bg: string; text: string }> = {
-    Running: { bg: '#dcfce7', text: '#16a34a' },
-    Failed:  { bg: '#fee2e2', text: '#dc2626' },
-    Pending: { bg: '#fef9c3', text: '#d97706' },
-    Stopped: { bg: '#f3f4f6', text: '#6b7280' },
+    Running:  { bg: '#dcfce7', text: '#16a34a' },
+    Failed:   { bg: '#fee2e2', text: '#dc2626' },
+    Pending:  { bg: '#fef9c3', text: '#d97706' },
+    Stopped:  { bg: '#f3f4f6', text: '#6b7280' },
+    Deleting: { bg: '#ffedd5', text: '#c2410c' },
   }
   const c = colors[phase ?? ''] ?? { bg: '#f3f4f6', text: '#6b7280' }
   return (
