@@ -98,6 +98,24 @@ make uninstall     # CRDs aus Cluster entfernen
 
 ---
 
+## Installation via Helm
+
+```bash
+helm install rpc-operator ./charts/rpc-operator \
+  -n rpc-operator-system --create-namespace \
+  --set 'imagePullSecrets[0].name=forgejo-pull' \
+  --set image.tag=main \
+  --set examples.enabled=true
+```
+
+Pull-Secret für die private Registry, Konfigurationsoptionen und 5-Minuten-
+Quickstart: [`charts/rpc-operator/README.md`](charts/rpc-operator/README.md).
+
+> **DEV-Scope:** Die UI ist ungesichert. Nicht öffentlich exponieren.
+> OIDC + RBAC landen in v0.8.
+
+---
+
 ## Container Image
 
 Das Operator-Image (Manager + UI in einem Binary) wird bei jedem Release-Tag und bei jedem

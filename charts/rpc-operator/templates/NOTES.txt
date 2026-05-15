@@ -1,0 +1,53 @@
+RPC Operator {{ .Chart.AppVersion }} installed in namespace "{{ .Release.Namespace }}".
+
+>>>  DEV-SCOPE WARNING  <<<
+The web UI is NOT authenticated. Do not expose it publicly.
+OIDC + RBAC scoping land in v0.8.
+
+1. Open the UI via port-forward:
+
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "rpc-operator.fullname" . }} 8082:{{ .Values.service.port }}
+   open http://localhost:8082
+
+{{- if .Values.ingress.enabled }}
+
+   Or via the configured Ingress:
+   https://{{ .Values.ingress.host }}
+{{- end }}
+
+2. Create your first pipeline (UI -> "Neue Pipeline" or "Raw YAML").
+
+{{- if .Values.examples.enabled }}
+
+3. A sample pipeline "hello-world" is already deployed. Inspect:
+
+   kubectl -n {{ .Release.Namespace }} get pipeline.rpc.operator.io hello-world
+   kubectl -n {{ .Release.Namespace }} logs -l rpc.operator.io/pipeline=hello-world
+{{- end }}
+
+{{- if not .Values.imagePullSecrets }}
+
+NOTE: imagePullSecrets is empty. If the image is in a private registry
+(e.g. forgejo.thecloudroute.com), create a pull secret and add it to values:
+
+  kubectl -n {{ .Release.Namespace }} create secret docker-registry forgejo-pull \
+    --docker-server=forgejo.thecloudroute.com \
+    --docker-username=<user> --docker-password=<PAT>
+
+  helm upgrade {{ .Release.Name }} ./charts/rpc-operator \
+    -n {{ .Release.Namespace }} \
+    --set 'imagePullSecrets[0].name=forgejo-pull'
+{{- end }}
+
+{{- if not .Values.operator.prometheusUrl }}
+
+NOTE: operator.prometheusUrl is empty. The throughput/error-rate graph
+(F15) will be disabled in the UI. To enable, set e.g.:
+
+  --set operator.prometheusUrl=http://prometheus-operated.cattle-monitoring-system.svc:9090
+{{- end }}
+
+CRD lifecycle: Helm installs CRDs only on first install.
+For CRD updates, re-apply manually:
+
+  kubectl apply -f charts/rpc-operator/crds/

@@ -1,0 +1,88 @@
+# rpc-operator Helm chart defaults.
+# DEV-scope: no authentication on the UI. Don't expose publicly.
+
+image:
+  repository: forgejo.thecloudroute.com/tom/rpc-operator
+  tag: ""              # Empty -> Chart.appVersion. Override to "main" for nightly DEV builds.
+  pullPolicy: IfNotPresent
+
+# Image-pull secrets for private registries (Forgejo registry needs one):
+#   kubectl create secret docker-registry forgejo-pull \
+#     --docker-server=forgejo.thecloudroute.com \
+#     --docker-username=<user> --docker-password=<PAT> -n <release-ns>
+imagePullSecrets: []
+# - name: forgejo-pull
+
+replicaCount: 1
+
+# Operator command-line configuration
+operator:
+  # Prometheus base URL for the UI's throughput/error-rate graph (F15).
+  # Empty disables that graph. The operator itself runs fine without it.
+  # Example: http://prometheus-operated.cattle-monitoring-system.svc:9090
+  prometheusUrl: ""
+
+# Leader election adds resilience for >1 replica. v0.7 default off
+# (single-pod DEV setup; enabling requires extra Role for leases that this
+# chart does not yet ship).
+leaderElection:
+  enabled: false
+
+# Operator self-metrics on :8443 HTTPS with authn/authz. Off by default
+# for DEV - the PodMonitor-per-pipeline (F36) is unaffected.
+metrics:
+  enabled: false
+
+service:
+  type: ClusterIP
+  port: 8082          # API + embedded UI
+
+# Optional Ingress for the UI. Default access is `kubectl port-forward`.
+# Don't enable without external auth in front (e.g. OAuth2-Proxy).
+ingress:
+  enabled: false
+  className: ""
+  host: rpc-operator.example.com
+  annotations: {}
+  # nginx.ingress.kubernetes.io/proxy-body-size: 1m
+  tls: []
+  # - secretName: rpc-operator-tls
+  #   hosts: [rpc-operator.example.com]
+
+# Sample pipelines installed into the release namespace. Useful for the
+# first-run smoke test. Turn off once you have your own pipelines.
+examples:
+  enabled: false
+
+serviceAccount:
+  create: true
+  name: ""           # empty -> derived from fullname
+
+# Operator pod resources
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podAnnotations: {}
+podLabels: {}
+
+# PodSecurityStandard: restricted (matches existing manager.yaml)
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL

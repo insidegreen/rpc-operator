@@ -1,0 +1,23 @@
+{{- if .Values.examples.enabled -}}
+apiVersion: rpc.operator.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: hello-world
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rpc-operator.labels" . | nindent 4 }}
+    app.kubernetes.io/component: example
+spec:
+  input:
+    type: generate
+    config:
+      mapping: 'root = "hello world"'
+      interval: "1s"
+      count: 5
+  processors:
+    - type: mapping
+      config: "root = content().uppercase()"
+  output:
+    type: stdout
+    config: {}
+{{- end }}

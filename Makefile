@@ -160,6 +160,31 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && "$(KUSTOMIZE)" edit set image controller=${IMG}
 	"$(KUSTOMIZE)" build config/default > dist/install.yaml
 
+##@ Helm
+
+HELM ?= helm
+HELM_CHART_DIR ?= charts/rpc-operator
+HELM_RELEASE ?= rpc-operator
+HELM_NAMESPACE ?= rpc-operator-system
+
+.PHONY: helm-lint
+helm-lint: ## Lint the Helm chart.
+	$(HELM) lint $(HELM_CHART_DIR)
+
+.PHONY: helm-template
+helm-template: ## Render the chart with all toggles on (for diff/audit).
+	$(HELM) template $(HELM_RELEASE) $(HELM_CHART_DIR) \
+		-n $(HELM_NAMESPACE) \
+		--set examples.enabled=true \
+		--set ingress.enabled=true
+
+.PHONY: helm-install-dev
+helm-install-dev: ## Install the chart in DEV mode (image.tag=main, examples enabled).
+	$(HELM) upgrade --install $(HELM_RELEASE) $(HELM_CHART_DIR) \
+		-n $(HELM_NAMESPACE) --create-namespace \
+		--set image.tag=main \
+		--set examples.enabled=true
+
 ##@ Deployment
 
 ifndef ignore-not-found

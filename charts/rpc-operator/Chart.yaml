@@ -1,0 +1,21 @@
+apiVersion: v2
+name: rpc-operator
+description: |
+  Kubernetes-Operator für Redpanda-Connect-Pipelines.
+  Data Engineers konfigurieren Pipelines via eingebetteter Web-UI; der Operator
+  rollt pro Pipeline einen Pod aus.
+  DEV-Scope: keine Auth — Chart nicht öffentlich exponieren.
+type: application
+version: 0.7.0
+appVersion: "0.7.0"
+keywords:
+  - redpanda
+  - benthos
+  - streaming
+  - data-pipeline
+  - operator
+home: https://forgejo.thecloudroute.com/tom/rpc-operator
+sources:
+  - https://forgejo.thecloudroute.com/tom/rpc-operator
+maintainers:
+  - name: tom
