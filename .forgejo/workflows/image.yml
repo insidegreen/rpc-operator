@@ -61,5 +61,5 @@ jobs:
           cache: true
           cache_repo: ${{ env.IMAGE }}/cache
           credentials: |
-            forgejo.thecloudroute.com=${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}
+            forgejo.thecloudroute.com=${{ github.actor }}:${{ secrets.PUSH_PACKAGE_TOKEN }}
           destinations: ${{ steps.tags.outputs.destinations }}
