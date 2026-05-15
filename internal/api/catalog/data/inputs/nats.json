@@ -49,6 +49,18 @@
           "user_nkey_seed": {
             "type": "string",
             "description": "NKey seed used to sign the user_jwt challenge. Supports ${ENV_VAR}."
+          },
+          "user": {
+            "type": "string",
+            "description": "Username for plain username/password authentication. Supports ${ENV_VAR}."
+          },
+          "password": {
+            "type": "string",
+            "description": "Password for plain username/password authentication. Supports ${ENV_VAR}."
+          },
+          "token": {
+            "type": "string",
+            "description": "Authentication token. Supports ${ENV_VAR}."
           }
         },
         "additionalProperties": false
