@@ -114,7 +114,7 @@ Main-Push automatisch über Forgejo Actions gebaut und in die Forgejo-Registry g
 | `main`          | Letzter Commit auf `main`-Branch              |
 | `main-<sha7>`   | Spezifischer Main-Commit (für Bisect / Pin)   |
 
-**Architekturen:** `linux/amd64`, `linux/arm64`
+**Architekturen:** `linux/amd64` (arm64 folgt, sobald ein arm64-Forgejo-Runner verfügbar ist).
 
 **Pull:**
 
@@ -122,11 +122,16 @@ Main-Push automatisch über Forgejo Actions gebaut und in die Forgejo-Registry g
 docker pull forgejo.thecloudroute.com/tom/rpc-operator:latest
 ```
 
-**Lokal bauen** (Maintainer):
+**Lokal bauen** (Maintainer, mit Docker-Daemon):
 
 ```bash
-make docker-buildx IMG=forgejo.thecloudroute.com/tom/rpc-operator:dev
+make docker-build IMG=forgejo.thecloudroute.com/tom/rpc-operator:dev
 ```
+
+> **CI-Build:** Forgejo Actions baut das Image mit
+> [Kaniko](https://github.com/GoogleContainerTools/kaniko) ohne Docker-Daemon
+> (`.forgejo/workflows/image.yml`). Multi-Arch ist nicht aktiviert, weil Kaniko
+> einen Single-Arch-Builder ist und derzeit nur ein amd64-Runner verfügbar ist.
 
 ---
 

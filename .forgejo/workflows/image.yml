@@ -11,9 +11,12 @@ permissions:
   contents: read
   packages: write
 
+env:
+  IMAGE: forgejo.thecloudroute.com/tom/rpc-operator
+
 jobs:
   build-push:
-    name: Multi-arch build & push to Forgejo registry
+    name: Kaniko build & push to Forgejo registry (linux/amd64)
     runs-on: docker
     # Alpine runner default container lacks node/bash — use act-compatible image
     container:
@@ -25,40 +28,38 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up QEMU (for arm64 emulation)
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: linux/arm64
+      - name: Compute image tags
+        id: tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          ref="${GITHUB_REF}"
+          dests=""
+          if [[ "${ref}" == refs/tags/v* ]]; then
+            version="${ref#refs/tags/}"
+            dests="${IMAGE}:${version} ${IMAGE}:latest"
+          elif [[ "${ref}" == refs/heads/main ]]; then
+            short_sha="${GITHUB_SHA:0:7}"
+            dests="${IMAGE}:main ${IMAGE}:main-${short_sha}"
+          else
+            echo "Unexpected ref ${ref}; no tags computed"
+            exit 1
+          fi
+          echo "destinations<<EOF" >> "${GITHUB_OUTPUT}"
+          # Whitespace-separated for kaniko-action (newlines also accepted)
+          for d in ${dests}; do echo "${d}" >> "${GITHUB_OUTPUT}"; done
+          echo "EOF" >> "${GITHUB_OUTPUT}"
+          echo "Computed destinations:"
+          printf '  %s\n' ${dests}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Forgejo registry
-        uses: docker/login-action@v3
-        with:
-          registry: forgejo.thecloudroute.com
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: forgejo.thecloudroute.com/tom/rpc-operator
-          tags: |
-            type=ref,event=tag
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
-            type=sha,prefix=main-,format=short,enable=${{ github.ref == 'refs/heads/main' }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v6
+      - name: Build & push (Kaniko)
+        uses: https://codeberg.org/umglurf/kaniko-action@main
         with:
           context: .
-          file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
+          docker_file: Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=forgejo.thecloudroute.com/tom/rpc-operator:buildcache
-          cache-to: type=registry,ref=forgejo.thecloudroute.com/tom/rpc-operator:buildcache,mode=max
+          cache: true
+          cache_repo: ${{ env.IMAGE }}/cache
+          credentials: |
+            forgejo.thecloudroute.com=${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}
+          destinations: ${{ steps.tags.outputs.destinations }}
