@@ -6,8 +6,7 @@ RUN npm ci
 COPY ui/ .
 RUN npm run build
 # Vite outDir = ../internal/api/static (relative to ui/), so the built files
-# land at /ui/../internal/api/static in the container, i.e. /internal/api/static.
-# We copy from the default dist/ location explicitly below.
+# land at /internal/api/static in the container, not /ui/dist.
 
 # --- Build manager binary ---
 FROM golang:1.25 AS builder
@@ -25,7 +24,7 @@ RUN go mod download
 # Copy the Go source (relies on .dockerignore to filter)
 COPY . .
 # Overlay the freshly-built UI assets over the committed placeholder
-COPY --from=ui-builder /ui/dist ./internal/api/static/
+COPY --from=ui-builder /internal/api/static/ ./internal/api/static/
 
 # Build
 # the GOARCH has no default value to allow the binary to be built according to the host where the command

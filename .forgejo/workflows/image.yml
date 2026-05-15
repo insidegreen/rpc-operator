@@ -1,0 +1,64 @@
+name: Build & Push Image
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-push:
+    name: Multi-arch build & push to Forgejo registry
+    runs-on: self-hosted
+    # Alpine runner default container lacks node/bash — use act-compatible image
+    container:
+      image: catthehacker/ubuntu:act-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up QEMU (for arm64 emulation)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Forgejo registry
+        uses: docker/login-action@v3
+        with:
+          registry: forgejo.thecloudroute.com
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: forgejo.thecloudroute.com/tom/rpc-operator
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=main-,format=short,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=forgejo.thecloudroute.com/tom/rpc-operator:buildcache
+          cache-to: type=registry,ref=forgejo.thecloudroute.com/tom/rpc-operator:buildcache,mode=max

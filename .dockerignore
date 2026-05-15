@@ -1,11 +1,31 @@
 # More info: https://docs.docker.com/engine/reference/builder/#dockerignore-file
-# Ignore everything by default and re-include only needed files
+# Ignore everything by default and re-include only what the Dockerfile needs.
 **
 
-# Re-include Go source files (but not *_test.go)
+# Go sources + module files (Manager build stage)
 !**/*.go
 **/*_test.go
-
-# Re-include Go module files
 !go.mod
 !go.sum
+
+# UI sources (ui-builder stage uses these)
+!ui/package.json
+!ui/package-lock.json
+!ui/vite.config.ts
+!ui/tsconfig.json
+!ui/index.html
+!ui/src/**
+
+# Kubebuilder/operator scaffolding referenced by code generation paths
+!hack/**
+!api/**
+!cmd/**
+!internal/**
+!PROJECT
+
+# Never include heavy/local-only paths even if re-included above
+ui/node_modules/**
+ui/dist/**
+bin/**
+cover.out
+.git/**

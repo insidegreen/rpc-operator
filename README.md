@@ -98,6 +98,38 @@ make uninstall     # CRDs aus Cluster entfernen
 
 ---
 
+## Container Image
+
+Das Operator-Image (Manager + UI in einem Binary) wird bei jedem Release-Tag und bei jedem
+Main-Push automatisch über Forgejo Actions gebaut und in die Forgejo-Registry gepusht.
+
+**Image:** `forgejo.thecloudroute.com/tom/rpc-operator`
+
+**Tags:**
+
+| Tag             | Bedeutung                                     |
+|-----------------|-----------------------------------------------|
+| `vX.Y.Z`        | Release-Build von einem Git-Tag               |
+| `latest`        | Aktuellster Release-Tag                       |
+| `main`          | Letzter Commit auf `main`-Branch              |
+| `main-<sha7>`   | Spezifischer Main-Commit (für Bisect / Pin)   |
+
+**Architekturen:** `linux/amd64`, `linux/arm64`
+
+**Pull:**
+
+```bash
+docker pull forgejo.thecloudroute.com/tom/rpc-operator:latest
+```
+
+**Lokal bauen** (Maintainer):
+
+```bash
+make docker-buildx IMG=forgejo.thecloudroute.com/tom/rpc-operator:dev
+```
+
+---
+
 ## Getting Started
 
 ### Prerequisites
