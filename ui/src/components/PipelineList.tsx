@@ -147,7 +147,10 @@ export function PipelineList({ namespace, onEdit, onViewDetail, onNew, onNewRaw 
                   onMouseLeave={isDeleting ? undefined : e => (e.currentTarget.style.background = '')}
                 >
                   <td style={tdStyle}><strong>{p.metadata.name}</strong></td>
-                  <td style={tdStyle}><PhaseBadge phase={isDeleting ? 'Deleting' : p.status?.phase} /></td>
+                  <td style={tdStyle}>
+                    <PhaseBadge phase={isDeleting ? 'Deleting' : p.status?.phase} />
+                    <ConditionHint conditions={p.status?.conditions} phase={p.status?.phase} />
+                  </td>
                   <td style={{ ...tdStyle, color: '#666', fontFamily: 'monospace', fontSize: 12 }}>
                     {p.status?.podName ?? '—'}
                   </td>
@@ -218,6 +221,19 @@ function PhaseBadge({ phase }: { phase?: string }) {
       padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600,
     }}>
       {phase ?? 'Unknown'}
+    </span>
+  )
+}
+
+type Condition = NonNullable<NonNullable<Pipeline['status']>['conditions']>[number]
+
+function ConditionHint({ conditions, phase }: { conditions?: Condition[]; phase?: string }) {
+  if (phase !== 'Running') return null
+  const readyCond = (conditions ?? []).find(c => c.type === 'Ready')
+  if (!readyCond || readyCond.status !== 'False' || !readyCond.reason) return null
+  return (
+    <span style={{ marginLeft: 6, fontSize: 11, color: '#dc2626', fontWeight: 600, whiteSpace: 'nowrap' }}>
+      ⚠ {readyCond.reason}
     </span>
   )
 }
