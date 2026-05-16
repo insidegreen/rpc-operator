@@ -37,6 +37,34 @@ kubectl config current-context
 kubectl config use-context <context-name>
 ```
 
+### CLI-Flags des Operators
+
+Der Operator wird mit `go run ./cmd/main.go [flags]` gestartet. Alle Flags
+haben sinnvolle Defaults — die folgenden sind im Dev-Setup am häufigsten relevant.
+
+| Flag | Default | Zweck |
+|---|---|---|
+| `--api-bind-address` | `:8082` | Adresse für REST-API + eingebettete UI. Leer (`""`) deaktiviert den API-Server (nur Operator-Loop). |
+| `--health-probe-bind-address` | `:8081` | Liveness/Readiness-Probes (`/healthz`, `/readyz`). |
+| `--auth-enabled` | `true` | F43-Master-Switch. `--auth-enabled=false` reproduziert v0.7-Verhalten (kein Login, alle Requests via Operator-SA). Für Hot-Reload-Dev typischerweise `false` setzen. |
+| `--prometheus-url` | _leer_ | Prometheus-Basis-URL für den Throughput-Graph (F15). Leer deaktiviert nur den Graph, alles andere läuft. Bsp.: `--prometheus-url=http://prometheus-operated.cattle-monitoring-system.svc:9090` |
+| `--watch-namespaces` | _leer_ | F21-Allowlist als Komma-Liste. Leer = cluster-wide (sieht alle Pipelines). Bsp.: `--watch-namespaces=rpc-operator-poc,default` |
+| `--leader-elect` | `false` | Für Multi-Replica-Setups. Im Single-Pod-Dev aus lassen. |
+| `--metrics-bind-address` | `0` | Operator-Self-Metrics (controller-runtime). `0` = aus (Default; PodMonitor-pro-Pipeline aus F36 ist davon unberührt). `:8443` aktiviert HTTPS mit authn/authz. |
+| `--zap-log-level` | `debug` | Log-Level (`info`, `debug`, `error`); `opts.Development=true` im Code setzt den Default auf `debug`. |
+| `--zap-encoder` | `console` | `console` (menschenlesbar) oder `json` (für strukturierte Logs). |
+
+Dev-typischer Start mit allen relevanten Flags:
+
+```bash
+go run ./cmd/main.go \
+  --auth-enabled=false \
+  --watch-namespaces=rpc-operator-poc \
+  --prometheus-url=http://prometheus-operated.cattle-monitoring-system.svc:9090
+```
+
+> **Produktions-Flags:** `--metrics-secure`, `--metrics-cert-*`, `--webhook-cert-*`, `--enable-http2` sind für Helm-Deployments im Cluster gedacht und im Dev-Setup normalerweise nicht nötig. Vollständige Liste: `go run ./cmd/main.go --help`.
+
 ### UI-Entwicklung mit Hot-Reload
 
 Für Frontend-Änderungen reicht ein separater Vite-Dev-Server — kein Neustart
