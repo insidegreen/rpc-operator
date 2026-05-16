@@ -55,6 +55,7 @@ spec:
             - --watch-namespaces={{ join "," . }}
             {{- end }}
             {{- end }}
+            - --auth-enabled={{ .Values.auth.enabled }}
           ports:
             - name: health
               containerPort: 8081

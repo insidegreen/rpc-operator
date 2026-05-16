@@ -1,13 +1,22 @@
 import type { CatalogComponent, MetricsResponse, Pipeline, PipelineSpec, ValidateResponse } from './types'
+import { getToken, clearToken } from './auth'
 
 const BASE = '/api/v1'
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+export async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const headers: Record<string, string> = {}
+  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  const token = getToken()
+  if (token) headers['Authorization'] = 'Bearer ' + token
   const resp = await fetch(BASE + path, {
     method,
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : {},
+    headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
+  if (resp.status === 401) {
+    clearToken()
+    window.dispatchEvent(new CustomEvent('rpc-auth-expired'))
+  }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: resp.statusText }))
     throw Object.assign(new Error(err.error ?? resp.statusText), { status: resp.status, body: err })

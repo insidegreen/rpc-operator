@@ -2,6 +2,7 @@ package api
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net/http"
 
@@ -16,9 +17,27 @@ func (s *Server) handleLogStream(w http.ResponseWriter, r *http.Request) {
 	ns := r.PathValue("namespace")
 	name := r.PathValue("name")
 
+	// In Mode B the token arrives in `?token=…` because browsers cannot set
+	// headers on `new WebSocket(...)`. Verify and inject into context BEFORE
+	// the WS upgrade, because after Accept we can no longer write HTTP errors.
+	if s.AuthEnabled {
+		token := tokenFromRequest(r)
+		if token == "" {
+			writeJSONError(w, http.StatusUnauthorized, "unauthorized", "missing token query parameter")
+			return
+		}
+		ctx := context.WithValue(r.Context(), tokenContextKey, token)
+		r = r.WithContext(ctx)
+	}
+
 	// 1. Pipeline holen — HTTP-Fehler sind hier noch möglich (vor WS-Upgrade)
+	c, err := s.clientForRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal error", err.Error())
+		return
+	}
 	var pipe rpcv1alpha1.Pipeline
-	if err := s.Client.Get(r.Context(), client.ObjectKey{Namespace: ns, Name: name}, &pipe); err != nil {
+	if err := c.Get(r.Context(), client.ObjectKey{Namespace: ns, Name: name}, &pipe); err != nil {
 		writeK8sError(w, err)
 		return
 	}
@@ -26,14 +45,20 @@ func (s *Server) handleLogStream(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusConflict, "no pod", "pipeline has no running pod")
 		return
 	}
-	if s.Clientset == nil {
+
+	cs, err := s.clientsetForRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal error", err.Error())
+		return
+	}
+	if cs == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "not available", "log streaming not configured")
 		return
 	}
 
 	// 2. WebSocket-Upgrade — danach keine HTTP-Error-Responses mehr möglich
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		InsecureSkipVerify: true, // Origin-Check folgt mit F20 (OIDC)
+		InsecureSkipVerify: true, // Origin-Check folgt mit F20b (OIDC) oder eigenem Hardening-PRP
 	})
 	if err != nil {
 		return // Accept schreibt selbst die Fehlerantwort
@@ -45,7 +70,7 @@ func (s *Server) handleLogStream(w http.ResponseWriter, r *http.Request) {
 
 	// 3. Pod-Log-Stream öffnen
 	tailLines := int64(200)
-	req := s.Clientset.CoreV1().Pods(ns).GetLogs(pipe.Status.PodName, &corev1.PodLogOptions{
+	req := cs.CoreV1().Pods(ns).GetLogs(pipe.Status.PodName, &corev1.PodLogOptions{
 		Container: "connect",
 		Follow:    true,
 		TailLines: &tailLines,

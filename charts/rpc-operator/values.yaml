@@ -33,6 +33,13 @@ operator:
   #     - analytics
   watchNamespaces: []
 
+# F43: Auth-Master-Switch. Default an (v0.8+). Bei `enabled: false` verhaelt
+# sich der Operator identisch zu v0.7 (kein Login, alle Requests laufen unter
+# Operator-SA, F21-Allowlist bleibt aktiv). NIE mit Public-Ingress kombinieren
+# ohne externes Auth-Proxy.
+auth:
+  enabled: true
+
 # Leader election adds resilience for >1 replica. v0.7 default off
 # (single-pod DEV setup; enabling requires extra Role for leases that this
 # chart does not yet ship).

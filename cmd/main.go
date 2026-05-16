@@ -68,6 +68,7 @@ func main() {
 	var apiAddr string
 	var prometheusURL string
 	var watchNamespacesRaw string
+	var authEnabled bool
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var tlsOpts []func(*tls.Config)
@@ -92,6 +93,8 @@ func main() {
 		"Prometheus base URL for PromQL queries (e.g. http://prometheus:9090). Empty disables metrics.")
 	flag.StringVar(&watchNamespacesRaw, "watch-namespaces", "",
 		"Comma-separated namespace allowlist for operator cache and API. Empty = cluster-wide.")
+	flag.BoolVar(&authEnabled, "auth-enabled", true,
+		"Enable Bearer-Token authentication (F20a). false = v0.7-equivalent (operator-SA serves all requests).")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	opts := zap.Options{
@@ -103,6 +106,10 @@ func main() {
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
 	watchNamespaces := parseWatchNamespaces(watchNamespacesRaw)
+
+	if !authEnabled {
+		setupLog.Info("AUTH DISABLED — operator-SA serves all requests")
+	}
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -216,7 +223,10 @@ func main() {
 	// +kubebuilder:scaffold:builder
 
 	if apiAddr != "" {
-		apiSrv, err := api.New(apiAddr, mgr.GetClient(), mgr.GetConfig(), prometheusURL, watchNamespaces)
+		apiSrv, err := api.New(
+			apiAddr, mgr.GetClient(), mgr.GetConfig(), mgr.GetScheme(),
+			prometheusURL, watchNamespaces, authEnabled,
+		)
 		if err != nil {
 			setupLog.Error(err, "Failed to create API server")
 			os.Exit(1)

@@ -65,8 +65,13 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	c, err := s.clientForRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal error", err.Error())
+		return
+	}
 	var pipe rpcv1alpha1.Pipeline
-	if err := s.Client.Get(r.Context(), client.ObjectKey{Namespace: ns, Name: name}, &pipe); err != nil {
+	if err := c.Get(r.Context(), client.ObjectKey{Namespace: ns, Name: name}, &pipe); err != nil {
 		writeK8sError(w, err)
 		return
 	}

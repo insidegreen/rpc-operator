@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Toaster } from 'sonner'
 import { listCatalog, getPipeline, listNamespaces } from './api'
+import { whoami, clearToken, type WhoamiResponse } from './auth'
 import benthosLogo from './assets/benthos-logo.svg'
 import { PipelineEditor } from './components/PipelineEditor'
 import { PipelineList } from './components/PipelineList'
 import { PipelineDetail } from './components/PipelineDetail'
 import { RawPipelineEditor } from './components/RawPipelineEditor'
 import { DeployBar } from './components/DeployBar'
+import { LoginScreen } from './components/LoginScreen'
 import type { CatalogComponent, Pipeline, PipelineSpec } from './types'
 
 const DEFAULT_SPEC: PipelineSpec = {
@@ -26,9 +28,24 @@ export default function App() {
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null)
   const [editPipeline, setEditPipeline] = useState<Pipeline | undefined>(undefined)
   const [allowedNamespaces, setAllowedNamespaces] = useState<string[]>([])
+  const [me, setMe] = useState<WhoamiResponse | null>(null)
+  const [authReady, setAuthReady] = useState(false)
 
-  useEffect(() => { listCatalog().then(setCatalog).catch(console.error) }, [])
   useEffect(() => {
+    whoami()
+      .then(r => { setMe(r); setAuthReady(true) })
+      .catch(() => { setMe(null); setAuthReady(true) })
+    const onExpire = () => { setMe(null) }
+    window.addEventListener('rpc-auth-expired', onExpire)
+    return () => window.removeEventListener('rpc-auth-expired', onExpire)
+  }, [])
+
+  useEffect(() => {
+    if (!me) return
+    listCatalog().then(setCatalog).catch(console.error)
+  }, [me])
+  useEffect(() => {
+    if (!me) return
     listNamespaces()
       .then(ns => {
         setAllowedNamespaces(ns)
@@ -38,7 +55,7 @@ export default function App() {
       })
       .catch(console.error)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [me])
   const catalogCache = useMemo(
     () => new Map(catalog.map(c => [c.category + '/' + c.name, c])),
     [catalog],
@@ -88,6 +105,18 @@ export default function App() {
     setView('raw-editor')
   }
 
+  if (!authReady) {
+    return <div style={{ padding: 24, fontFamily: 'system-ui, sans-serif' }}>Laden…</div>
+  }
+  if (!me) {
+    return (
+      <>
+        <Toaster position="bottom-right" richColors />
+        <LoginScreen onLoggedIn={() => whoami().then(setMe).catch(() => setMe(null))} />
+      </>
+    )
+  }
+
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, fontFamily: 'system-ui, sans-serif' }}>
       <Toaster position="bottom-right" richColors />
@@ -101,7 +130,7 @@ export default function App() {
           <h1 style={{ fontSize: 20, margin: 0, fontWeight: 600, lineHeight: 1.2 }}>Redpanda Connect Operator</h1>
           <span style={{ fontSize: 12, color: '#aaa', lineHeight: 1 }}>aka Benthos</span>
         </div>
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
           <label style={{ fontSize: 13, color: '#555' }}>
             Namespace&nbsp;
             {allowedNamespaces.length > 0 ? (
@@ -122,6 +151,21 @@ export default function App() {
               />
             )}
           </label>
+          {me.anonymous ? (
+            <span title="Operator deployed without authentication" style={authHintStyle}>
+              Auth disabled
+            </span>
+          ) : (
+            <>
+              <span style={{ fontSize: 12, color: '#666' }}>{me.user.name}</span>
+              <button
+                onClick={() => { clearToken(); setMe(null) }}
+                style={logoutBtnStyle}
+              >
+                Logout
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -178,4 +222,11 @@ const nsInputStyle: React.CSSProperties = {
 const inputStyle: React.CSSProperties = {
   padding: '5px 10px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14,
   marginLeft: 4,
+}
+const authHintStyle: React.CSSProperties = {
+  fontSize: 11, color: '#999', fontStyle: 'italic', cursor: 'help',
+}
+const logoutBtnStyle: React.CSSProperties = {
+  padding: '4px 10px', fontSize: 12, background: '#fff', border: '1px solid #ccc',
+  borderRadius: 4, cursor: 'pointer', color: '#444',
 }

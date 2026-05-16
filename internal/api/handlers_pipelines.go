@@ -11,8 +11,13 @@ import (
 )
 
 func (s *Server) handleListAll(w http.ResponseWriter, r *http.Request) {
+	c, err := s.clientForRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal error", err.Error())
+		return
+	}
 	var list rpcv1alpha1.PipelineList
-	if err := s.Client.List(r.Context(), &list); err != nil {
+	if err := c.List(r.Context(), &list); err != nil {
 		writeK8sError(w, err)
 		return
 	}
@@ -22,8 +27,13 @@ func (s *Server) handleListAll(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleListNamespaced(w http.ResponseWriter, r *http.Request) {
 	ns := r.PathValue("namespace")
+	c, err := s.clientForRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal error", err.Error())
+		return
+	}
 	var list rpcv1alpha1.PipelineList
-	if err := s.Client.List(r.Context(), &list, client.InNamespace(ns)); err != nil {
+	if err := c.List(r.Context(), &list, client.InNamespace(ns)); err != nil {
 		writeK8sError(w, err)
 		return
 	}
@@ -34,8 +44,13 @@ func (s *Server) handleListNamespaced(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGet(w http.ResponseWriter, r *http.Request) {
 	ns := r.PathValue("namespace")
 	name := r.PathValue("name")
+	c, err := s.clientForRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal error", err.Error())
+		return
+	}
 	var p rpcv1alpha1.Pipeline
-	if err := s.Client.Get(r.Context(), client.ObjectKey{Namespace: ns, Name: name}, &p); err != nil {
+	if err := c.Get(r.Context(), client.ObjectKey{Namespace: ns, Name: name}, &p); err != nil {
 		writeK8sError(w, err)
 		return
 	}
@@ -60,7 +75,12 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		writeValidationErrors(w, verrs)
 		return
 	}
-	if err := s.Client.Create(r.Context(), &p); err != nil {
+	c, err := s.clientForRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal error", err.Error())
+		return
+	}
+	if err := c.Create(r.Context(), &p); err != nil {
 		writeK8sError(w, err)
 		return
 	}
@@ -82,13 +102,18 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		writeValidationErrors(w, verrs)
 		return
 	}
+	c, err := s.clientForRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal error", err.Error())
+		return
+	}
 	var current rpcv1alpha1.Pipeline
-	if err := s.Client.Get(r.Context(), client.ObjectKey{Namespace: ns, Name: name}, &current); err != nil {
+	if err := c.Get(r.Context(), client.ObjectKey{Namespace: ns, Name: name}, &current); err != nil {
 		writeK8sError(w, err)
 		return
 	}
 	current.Spec = body.Spec
-	if err := s.Client.Update(r.Context(), &current); err != nil {
+	if err := c.Update(r.Context(), &current); err != nil {
 		writeK8sError(w, err)
 		return
 	}
@@ -99,12 +124,17 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request) {
 	ns := r.PathValue("namespace")
 	name := r.PathValue("name")
+	c, err := s.clientForRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal error", err.Error())
+		return
+	}
 	var p rpcv1alpha1.Pipeline
-	if err := s.Client.Get(r.Context(), client.ObjectKey{Namespace: ns, Name: name}, &p); err != nil {
+	if err := c.Get(r.Context(), client.ObjectKey{Namespace: ns, Name: name}, &p); err != nil {
 		writeK8sError(w, err)
 		return
 	}
-	if err := s.Client.Delete(r.Context(), &p); err != nil {
+	if err := c.Delete(r.Context(), &p); err != nil {
 		writeK8sError(w, err)
 		return
 	}

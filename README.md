@@ -111,8 +111,27 @@ helm install rpc-operator ./charts/rpc-operator \
 Pull-Secret für die private Registry, Konfigurationsoptionen und 5-Minuten-
 Quickstart: [`charts/rpc-operator/README.md`](charts/rpc-operator/README.md).
 
-> **DEV-Scope:** Die UI ist ungesichert. Nicht öffentlich exponieren.
-> OIDC + RBAC landen in v0.8.
+### Auth-Modi
+
+Ab v0.8 ist die UI per Default mit Bearer-Token-Auth geschützt. Drei Modi
+gesteuert über Helm-Werte:
+
+| Modus | Helm | Verhalten |
+|---|---|---|
+| **A. Auth aus** (v0.7-Kompatibilität) | `--set auth.enabled=false` | Kein Login; alle Requests laufen unter Operator-SA. **Niemals** mit Public-Ingress kombinieren. |
+| **B. Token-Auth** (Default v0.8) | `auth.enabled=true` (Default) | Login mit K8s-Bearer-Token (paste oder Kubeconfig-Upload — nur Token wird extrahiert, Cert-Auth wird abgelehnt). Backend forwarded den Token per-Request an den Apiserver; native K8s-RBAC entscheidet. |
+| **C. + anonyme GETs** (F42, geplant) | `auth.enabled=true` + `anonymous.read.enabled=true` | Wie B; zusätzlich GET-Pfade ohne Auth. Noch nicht implementiert. |
+
+Token besorgen für Mode B:
+
+```bash
+kubectl --context <ctx> create token <serviceaccount> -n <namespace>
+```
+
+> **Log-Stream-Hinweis:** Browser können bei `new WebSocket()` keine Header
+> setzen, daher wandert das Token zum `/logs`-Endpoint in der URL
+> (`?token=…`). Bei Reverse-Proxies und Ingress-Controllern darauf achten,
+> dass Access-Logs den Query-String nicht persistent loggen.
 
 ---
 

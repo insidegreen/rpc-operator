@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Pipeline } from '../types'
+import { getToken } from '../auth'
 import { MetricsGraph } from './MetricsGraph'
 
 interface Props {
@@ -18,7 +19,9 @@ export function PipelineDetail({ pipeline, onEdit, onBack }: Props) {
   useEffect(() => {
     const { namespace, name } = pipeline.metadata
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const url = `${proto}//${window.location.host}/api/v1/namespaces/${namespace}/pipelines/${name}/logs`
+    const token = getToken()
+    const tokenQuery = token ? `?token=${encodeURIComponent(token)}` : ''
+    const url = `${proto}//${window.location.host}/api/v1/namespaces/${namespace}/pipelines/${name}/logs${tokenQuery}`
     const ws = new WebSocket(url)
 
     ws.onopen = () => setWsState('open')
