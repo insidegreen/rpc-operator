@@ -1,11 +1,7 @@
 name: Mirror to GitHub
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*'
+  workflow_dispatch:
 
 # Prevent concurrent mirror runs from racing on force-push.
 # cancel-in-progress: false ensures the second run waits rather than
