@@ -3,7 +3,16 @@ import { toast } from 'sonner'
 import { whoami } from '../api'
 import { parseKubeconfigToken, setToken, clearToken } from '../auth'
 
-export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
+export function LoginScreen({
+  onLoggedIn,
+  onCancel,
+}: {
+  onLoggedIn: () => void
+  /** F44: when set, renders a Cancel button that calls clearToken() + onCancel().
+   *  Used in Mode C (anonymous read-only) to return to the read-only view without
+   *  forcing the user to authenticate. Mode B (auth strict) omits it. */
+  onCancel?: () => void
+}) {
   const [tokenText, setTokenText] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -68,6 +77,15 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
             style={{ display: 'none' }}
           />
         </label>
+        {onCancel && (
+          <button
+            onClick={() => { clearToken(); onCancel() }}
+            disabled={busy}
+            style={cancelBtnStyle}
+          >
+            Back to read-only view
+          </button>
+        )}
       </div>
     </div>
   )
@@ -102,4 +120,14 @@ const fileLabel: React.CSSProperties = {
   borderRadius: 4,
   cursor: 'pointer',
   fontSize: 14,
+}
+const cancelBtnStyle: React.CSSProperties = {
+  padding: '8px 16px',
+  background: 'transparent',
+  color: '#666',
+  border: '1px solid #ccc',
+  borderRadius: 4,
+  cursor: 'pointer',
+  fontSize: 14,
+  marginLeft: 'auto',
 }

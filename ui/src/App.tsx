@@ -33,12 +33,20 @@ export default function App() {
   const [allowedNamespaces, setAllowedNamespaces] = useState<string[]>([])
   const [me, setMe] = useState<WhoamiResponse | null>(null)
   const [authReady, setAuthReady] = useState(false)
+  // F44: when true, render LoginScreen on top of the current state.
+  // Used in Mode C when the user clicks the "Log in" banner button.
+  const [loginOverlay, setLoginOverlay] = useState(false)
 
   useEffect(() => {
     whoami()
       .then(r => { setMe(r); setAuthReady(true) })
       .catch(() => { setMe(null); setAuthReady(true) })
-    const onExpire = () => { setMe(null) }
+    // F44: on auth-expire (server 401 after a stored token), re-resolve via whoami.
+    // Mode C anonymous returns 200 → stay logged out in read-only view.
+    // Mode B strict returns 401 → whoami throws → setMe(null) → LoginScreen.
+    const onExpire = () => {
+      whoami().then(setMe).catch(() => setMe(null))
+    }
     window.addEventListener('rpc-auth-expired', onExpire)
     return () => window.removeEventListener('rpc-auth-expired', onExpire)
   }, [])
@@ -101,6 +109,26 @@ export default function App() {
     setView('detail')
   }
 
+  // F44: central entry point for "user wants to authenticate".
+  // F20b (OIDC) will replace this body with a PKCE redirect — call sites stay the same.
+  function triggerLogin() {
+    setLoginOverlay(true)
+  }
+
+  // F44: logout that works in both Mode B and Mode C. After clearing the token,
+  // re-resolve via whoami: 200 anonymous (Mode A or C) → stay in anonymous view;
+  // 401 (Mode B strict) → setMe(null) → LoginScreen.
+  async function handleLogout() {
+    clearToken()
+    setLoginOverlay(false)
+    try {
+      const r = await whoami()
+      setMe(r)
+    } catch {
+      setMe(null)
+    }
+  }
+
   async function handleStop() {
     if (!selectedPipeline) return
     const { namespace, name } = selectedPipeline.metadata
@@ -144,11 +172,24 @@ export default function App() {
   if (!authReady) {
     return <div style={{ padding: 24, fontFamily: 'system-ui, sans-serif' }}>Loading…</div>
   }
-  if (!me) {
+  if (!me || loginOverlay) {
+    // F44: Cancel is only meaningful in Mode C — Mode B users without a token
+    // have no working state to cancel back to.
+    const cancelLogin =
+      me && me.anonymous && me.readOnly
+        ? () => setLoginOverlay(false)
+        : undefined
     return (
       <>
         <Toaster position="bottom-right" richColors />
-        <LoginScreen onLoggedIn={() => whoami().then(setMe).catch(() => setMe(null))} />
+        <LoginScreen
+          onLoggedIn={() => {
+            whoami()
+              .then(r => { setMe(r); setLoginOverlay(false) })
+              .catch(() => setMe(null))
+          }}
+          onCancel={cancelLogin}
+        />
       </>
     )
   }
@@ -158,7 +199,12 @@ export default function App() {
       <Toaster position="bottom-right" richColors />
       {readOnly && (
         <div style={readOnlyBannerStyle}>
-          Read-only mode — anonymous access. Editing and deploying are not available.
+          <span>
+            Read-only mode — anonymous access. Editing and deploying are not available.
+          </span>
+          <button onClick={triggerLogin} style={bannerLoginBtnStyle}>
+            Log in
+          </button>
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
@@ -204,10 +250,7 @@ export default function App() {
             // F20a Mode B — authenticated user.
             <>
               <span style={{ fontSize: 12, color: '#666' }}>{me.user.name}</span>
-              <button
-                onClick={() => { clearToken(); setMe(null) }}
-                style={logoutBtnStyle}
-              >
+              <button onClick={handleLogout} style={logoutBtnStyle}>
                 Logout
               </button>
             </>
@@ -284,4 +327,10 @@ const logoutBtnStyle: React.CSSProperties = {
 const readOnlyBannerStyle: React.CSSProperties = {
   background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: 4,
   padding: '8px 12px', marginBottom: 16, fontSize: 13, color: '#92400e',
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+}
+const bannerLoginBtnStyle: React.CSSProperties = {
+  padding: '4px 12px', fontSize: 12, background: '#fff',
+  border: '1px solid #fbbf24', borderRadius: 4, cursor: 'pointer',
+  color: '#92400e', fontWeight: 500,
 }
