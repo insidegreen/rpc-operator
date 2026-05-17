@@ -81,7 +81,7 @@ jobs:
 
       - name: Push to GitHub
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_MIRROR_TOKEN }}
+          GH_TOKEN: ${{ secrets.MIRROR_TOKEN_GITHUB }}
         run: |
           set -euo pipefail
           gh_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPO}.git"
