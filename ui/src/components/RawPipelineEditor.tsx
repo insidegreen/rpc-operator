@@ -23,7 +23,7 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
 
   async function handleDeploy() {
     if (!name.trim()) {
-      setError('Pipeline-Name darf nicht leer sein.')
+      setError('Pipeline name must not be empty.')
       return
     }
     setSaving(true)
@@ -37,7 +37,7 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
       }
       onSaved()
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Deploy fehlgeschlagen'
+      const msg = e instanceof Error ? e.message : 'Deploy failed'
       setError(msg)
     } finally {
       setSaving(false)
@@ -47,9 +47,9 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-        <button onClick={onBack} style={backBtnStyle}>← Zurück</button>
+        <button onClick={onBack} style={backBtnStyle}>← Back</button>
         <label style={{ fontSize: 14 }}>
-          Pipeline-Name&nbsp;
+          Pipeline name&nbsp;
           <input
             value={name}
             onChange={e => setName(e.target.value)}
@@ -66,7 +66,7 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
       </div>
 
       <div style={{ border: '1px solid #d1d5db', borderRadius: 4, overflow: 'hidden', marginBottom: 12 }}>
-        <Suspense fallback={<div style={{ padding: 16, color: '#888' }}>Editor lädt…</div>}>
+        <Suspense fallback={<div style={{ padding: 16, color: '#888' }}>Loading editor…</div>}>
           <MonacoEditor
             height="500px"
             language="yaml"

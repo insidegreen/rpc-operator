@@ -10,18 +10,18 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
   async function tryLogin(rawToken: string) {
     const trimmed = rawToken.trim()
     if (!trimmed) {
-      toast.error('Token leer')
+      toast.error('Token is empty')
       return
     }
     setBusy(true)
     setToken(trimmed)
     try {
       const r = await whoami()
-      toast.success(`Eingeloggt als ${r.user.name}`)
+      toast.success(`Logged in as ${r.user.name}`)
       onLoggedIn()
     } catch (e) {
       clearToken()
-      toast.error('Login fehlgeschlagen: ' + (e as Error).message)
+      toast.error('Login failed: ' + (e as Error).message)
     } finally {
       setBusy(false)
     }
@@ -31,7 +31,7 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
     const text = await file.text()
     const r = parseKubeconfigToken(text)
     if ('error' in r) {
-      toast.error('Kubeconfig: ' + r.error)
+      toast.error('Kubeconfig error: ' + r.error)
       return
     }
     setTokenText(r.token)
@@ -42,11 +42,11 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
     <div style={containerStyle}>
       <h2 style={{ margin: 0 }}>Login</h2>
       <p style={{ color: '#666', fontSize: 14, margin: '8px 0 24px' }}>
-        Bearer-Token einfügen oder eine Kubeconfig-Datei hochladen
-        (nur Token wird extrahiert; Cert-Auth wird abgelehnt).
+        Paste a Bearer token or upload a Kubeconfig file
+        (only the token will be extracted; certificate-based auth is not supported).
       </p>
 
-      <label style={{ fontSize: 13, color: '#444' }}>Bearer-Token</label>
+      <label style={{ fontSize: 13, color: '#444' }}>Bearer Token</label>
       <textarea
         value={tokenText}
         onChange={e => setTokenText(e.target.value)}
@@ -57,10 +57,10 @@ export function LoginScreen({ onLoggedIn }: { onLoggedIn: () => void }) {
 
       <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'center' }}>
         <button onClick={() => tryLogin(tokenText)} disabled={busy} style={primaryBtn}>
-          Einloggen
+          Log in
         </button>
         <label style={fileLabel}>
-          Kubeconfig hochladen
+          Upload Kubeconfig
           <input
             type="file"
             accept=".yaml,.yml,.conf,application/yaml,text/yaml"

@@ -68,7 +68,7 @@ export function ComponentBox({ title, category, multi, items, catalogCache, onCh
               <button
                 onClick={() => toggleCollapse(idx)}
                 style={chevronBtnStyle}
-                title={open ? 'Einklappen' : 'Ausklappen'}
+                title={open ? 'Collapse' : 'Expand'}
               >
                 {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
               </button>
@@ -79,7 +79,7 @@ export function ComponentBox({ title, category, multi, items, catalogCache, onCh
                   <input
                     value={item.label ?? ''}
                     onChange={e => handleLabelChange(idx, e.target.value)}
-                    placeholder="Label (Pflichtfeld)"
+                    placeholder="Label (required)"
                     style={labelInputStyle}
                   />
                   <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{item.type}</div>
@@ -97,7 +97,7 @@ export function ComponentBox({ title, category, multi, items, catalogCache, onCh
               <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                 {!multi && (
                   <button onClick={() => setPicking(true)} style={changeBtnStyle}>
-                    Ändern
+                    Change
                   </button>
                 )}
                 <button onClick={() => handleRemove(idx)} style={removeBtnStyle}>
@@ -123,7 +123,7 @@ export function ComponentBox({ title, category, multi, items, catalogCache, onCh
       })}
       {(multi || items.length === 0) && (
         <button onClick={() => setPicking(true)} style={addBtnStyle}>
-          + hinzufügen
+          + add
         </button>
       )}
       {picking && (

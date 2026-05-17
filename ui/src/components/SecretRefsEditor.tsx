@@ -21,7 +21,7 @@ export function SecretRefsEditor({ value, onChange }: Props) {
 
   return (
     <div style={boxStyle}>
-      <div style={headerStyle}>Secrets (Umgebungsvariablen)</div>
+      <div style={headerStyle}>Secrets (Environment Variables)</div>
       {value.length > 0 && (
         <div style={gridHeaderStyle}>
           <span>ENV_VAR</span><span>Secret-Name</span><span>Key</span><span />
@@ -50,8 +50,8 @@ export function SecretRefsEditor({ value, onChange }: Props) {
           <button onClick={() => remove(i)} style={removeBtnStyle}><X size={14} /></button>
         </div>
       ))}
-      <button onClick={add} style={addBtnStyle}>+ Secret hinzufügen</button>
-      <p style={hintStyle}>Im YAML referenzieren als <code>{'${MY_SECRET}'}</code></p>
+      <button onClick={add} style={addBtnStyle}>+ Add Secret</button>
+      <p style={hintStyle}>Reference in YAML as <code>{'${MY_SECRET}'}</code></p>
     </div>
   )
 }

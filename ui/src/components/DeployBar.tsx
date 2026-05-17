@@ -17,7 +17,7 @@ export function DeployBar({ namespace, name, spec }: Props) {
 
   async function handleDeploy() {
     if (!name || !namespace) {
-      setMessage('Name und Namespace sind Pflichtfelder.')
+      setMessage('Name and namespace are required.')
       setStatus('error')
       return
     }
@@ -34,7 +34,7 @@ export function DeployBar({ namespace, name, spec }: Props) {
         return
       }
     } catch (e) {
-      setMessage('Validierung fehlgeschlagen: ' + (e as Error).message)
+      setMessage('Validation failed: ' + (e as Error).message)
       setStatus('error')
       return
     }
@@ -57,7 +57,7 @@ export function DeployBar({ namespace, name, spec }: Props) {
       )
       setStatus('done')
     } catch (e) {
-      setMessage('Deploy fehlgeschlagen: ' + (e as Error).message)
+      setMessage('Deploy failed: ' + (e as Error).message)
       setStatus('error')
     }
   }
@@ -72,9 +72,9 @@ export function DeployBar({ namespace, name, spec }: Props) {
         style={{ padding: '8px 24px', fontSize: 15, cursor: busy ? 'wait' : 'pointer' }}
       >
         {status === 'validating'
-          ? 'Validiert…'
+          ? 'Validating…'
           : status === 'deploying'
-            ? 'Deployt…'
+            ? 'Deploying…'
             : 'Deploy'}
       </button>
 

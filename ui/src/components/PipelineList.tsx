@@ -88,18 +88,18 @@ export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail
     setDeletingNames(prev => new Set(prev).add(p.metadata.name))
     try {
       await deletePipeline(p.metadata.namespace, p.metadata.name)
-      toast.success(`Pipeline „${p.metadata.name}" gelöscht`)
+      toast.success(`Pipeline "${p.metadata.name}" deleted`)
       load()
     } catch (err) {
       console.error(err)
-      toast.error(`Fehler beim Löschen von „${p.metadata.name}"`)
+      toast.error(`Failed to delete "${p.metadata.name}"`)
       setDeletingNames(prev => { const s = new Set(prev); s.delete(p.metadata.name); return s })
       load()
     }
   }
 
-  if (loading) return <p style={{ color: '#888' }}>Lade Pipelines…</p>
-  if (error)   return <p style={{ color: 'red' }}>Fehler: {error}</p>
+  if (loading) return <p style={{ color: '#888' }}>Loading pipelines…</p>
+  if (error)   return <p style={{ color: 'red' }}>Error: {error}</p>
 
   return (
     <div>
@@ -107,11 +107,11 @@ export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail
         <h2 style={{ margin: 0, fontSize: 18 }}>Pipelines — {namespace}</h2>
         {!readOnly && onNew && (
           <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-flex' }}>
-            <button onClick={onNew} style={newBtnStyle}>+ Neue Pipeline</button>
+            <button onClick={onNew} style={newBtnStyle}>+ New Pipeline</button>
             <button
               onClick={() => setDropdownOpen(o => !o)}
               style={{ ...newBtnStyle, padding: '6px 8px', borderLeft: '1px solid rgba(255,255,255,0.4)', borderRadius: '0 4px 4px 0' }}
-              aria-label="Weitere Optionen"
+              aria-label="More options"
             ><ChevronDown size={14} /></button>
             {dropdownOpen && onNewRaw && (
               <div style={dropdownMenuStyle}>
@@ -119,7 +119,7 @@ export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail
                   onClick={() => { setDropdownOpen(false); onNewRaw() }}
                   style={dropdownItemStyle}
                 >
-                  Neue RAW Pipeline
+                  New RAW Pipeline
                 </button>
               </div>
             )}
@@ -127,15 +127,15 @@ export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail
         )}
       </div>
       {pipelines.length === 0 ? (
-        <p style={{ color: '#888' }}>Keine Pipelines in diesem Namespace.</p>
+        <p style={{ color: '#888' }}>No pipelines in this namespace.</p>
       ) : (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
           <thead>
             <tr style={{ background: '#f5f5f5', textAlign: 'left' }}>
-              <th style={thStyle} onClick={() => handleSort('name')}    title="Sortieren"><SortHeader label="Name"          col="name"    sortKey={sortKey} sortDir={sortDir} /></th>
-              <th style={thStyle} onClick={() => handleSort('phase')}   title="Sortieren"><SortHeader label="Status"        col="phase"   sortKey={sortKey} sortDir={sortDir} /></th>
-              <th style={thStyle} onClick={() => handleSort('pod')}     title="Sortieren"><SortHeader label="Pod"           col="pod"     sortKey={sortKey} sortDir={sortDir} /></th>
-              <th style={thStyle} onClick={() => handleSort('updated')} title="Sortieren"><SortHeader label="Letztes Update" col="updated" sortKey={sortKey} sortDir={sortDir} /></th>
+              <th style={thStyle} onClick={() => handleSort('name')}    title="Sort"><SortHeader label="Name"         col="name"    sortKey={sortKey} sortDir={sortDir} /></th>
+              <th style={thStyle} onClick={() => handleSort('phase')}   title="Sort"><SortHeader label="Status"       col="phase"   sortKey={sortKey} sortDir={sortDir} /></th>
+              <th style={thStyle} onClick={() => handleSort('pod')}     title="Sort"><SortHeader label="Pod"          col="pod"     sortKey={sortKey} sortDir={sortDir} /></th>
+              <th style={thStyle} onClick={() => handleSort('updated')} title="Sort"><SortHeader label="Last Updated" col="updated" sortKey={sortKey} sortDir={sortDir} /></th>
               <th style={thStyle}></th>
             </tr>
           </thead>
@@ -165,7 +165,7 @@ export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail
                     {!readOnly && onEdit && (
                       <button
                         onClick={e => { e.stopPropagation(); onEdit(p) }}
-                        title="Bearbeiten"
+                        title="Edit"
                         disabled={isDeleting}
                         style={{ ...iconBtnStyle, color: isDeleting ? '#ccc' : '#3b82f6' }}
                       >
@@ -175,7 +175,7 @@ export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail
                     {!readOnly && (
                       <button
                         onClick={e => requestDelete(p, e)}
-                        title="Löschen"
+                        title="Delete"
                         disabled={isDeleting}
                         style={{ ...iconBtnStyle, marginLeft: 4, color: isDeleting ? '#ccc' : '#ef4444' }}
                       >
@@ -195,17 +195,17 @@ export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail
           <Dialog.Overlay style={dialogOverlayStyle} />
           <Dialog.Content style={dialogContentStyle}>
             <Dialog.Title style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 600 }}>
-              Pipeline löschen
+              Delete Pipeline
             </Dialog.Title>
             <Dialog.Description style={{ color: '#555', fontSize: 14, margin: '0 0 20px', lineHeight: 1.5 }}>
-              Pipeline <strong>„{pipelineToDelete?.metadata.name}"</strong> wirklich löschen?
-              Diese Aktion kann nicht rückgängig gemacht werden.
+              Are you sure you want to delete pipeline <strong>"{pipelineToDelete?.metadata.name}"</strong>?
+              This action cannot be undone.
             </Dialog.Description>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <Dialog.Close asChild>
-                <button style={dialogCancelBtnStyle}>Abbrechen</button>
+                <button style={dialogCancelBtnStyle}>Cancel</button>
               </Dialog.Close>
-              <button onClick={confirmDelete} style={dialogDeleteBtnStyle}>Löschen</button>
+              <button onClick={confirmDelete} style={dialogDeleteBtnStyle}>Delete</button>
             </div>
           </Dialog.Content>
         </Dialog.Portal>
@@ -254,7 +254,7 @@ function lastUpdated(p: Pipeline): string {
     ? times.reduce((a, b) => (a > b ? a : b))
     : p.metadata.creationTimestamp
   if (!ts) return '—'
-  return new Date(ts).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })
+  return new Date(ts).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' })
 }
 
 function SortHeader({ label, col, sortKey, sortDir }: { label: string; col: SortKey; sortKey: SortKey; sortDir: SortDir }) {

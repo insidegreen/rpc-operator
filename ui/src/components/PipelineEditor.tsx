@@ -26,7 +26,7 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
 
   async function switchToYaml() {
     if (!isRaw && (!spec.input || !spec.output)) {
-      setYamlError('Input und Output müssen belegt sein bevor in den YAML-Modus gewechselt wird.')
+      setYamlError('Input and Output must be configured before switching to YAML mode.')
       return
     }
     setYamlError(undefined)
@@ -38,7 +38,7 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
       setYamlText(text)
       setMode('yaml')
     } catch (e) {
-      setYamlError('Render fehlgeschlagen: ' + (e as Error).message)
+      setYamlError('Render failed: ' + (e as Error).message)
     } finally {
       setYamlLoading(false)
     }
@@ -78,13 +78,13 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
     <div>
       <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
         <button onClick={switchToVisual} disabled={mode === 'visual'}>
-          Visuell
+          Visual
         </button>
         <button onClick={switchToYaml} disabled={mode === 'yaml' || yamlLoading}>
-          {yamlLoading ? 'Lade YAML…' : 'YAML'}
+          {yamlLoading ? 'Loading YAML…' : 'YAML'}
         </button>
         {isRaw && (
-          <span style={rawBadgeStyle} title="Pipeline wurde im YAML-Modus editiert und wird als RAW YAML deployed.">
+          <span style={rawBadgeStyle} title="Pipeline was edited in YAML mode and will be deployed as RAW YAML.">
             RAW YAML
           </span>
         )}
@@ -120,8 +120,7 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
 
       {mode === 'visual' && isRaw && (
         <div style={rawNoticeStyle}>
-          Diese Pipeline ist im RAW-YAML-Modus. Strukturierte Bearbeitung ist nicht
-          möglich — wechsle in den YAML-Tab, um die Konfiguration zu editieren.
+          This pipeline is in RAW YAML mode. Structured editing is not available — switch to the YAML tab to edit the configuration.
         </div>
       )}
 
@@ -129,11 +128,10 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
         <div>
           {isRaw && (
             <div style={rawBannerStyle}>
-              YAML-Edit aktiv: Beim Deploy wird die Pipeline als <code>spec.rawYAML</code> gespeichert.
-              Strukturierte Bearbeitung ist danach nur über erneutes Anlegen möglich.
+              YAML editing active: on deploy the pipeline will be saved as <code>spec.rawYAML</code>. Structured editing will only be possible by creating a new pipeline.
             </div>
           )}
-          <Suspense fallback={<div>Lade Editor…</div>}>
+          <Suspense fallback={<div>Loading editor…</div>}>
             <MonacoEditor
               height="400px"
               language="yaml"

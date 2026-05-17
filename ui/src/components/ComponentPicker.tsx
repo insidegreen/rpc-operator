@@ -25,10 +25,10 @@ export function ComponentPicker({ category, onSelect, onClose }: Props) {
   return (
     <div style={overlayStyle}>
       <div style={modalStyle}>
-        <h3 style={{ margin: '0 0 12px' }}>Komponente hinzufügen ({category})</h3>
+        <h3 style={{ margin: '0 0 12px' }}>Add component ({category})</h3>
         <input
           autoFocus
-          placeholder="Suchen…"
+          placeholder="Search…"
           value={query}
           onChange={e => setQuery(e.target.value)}
           style={{ width: '100%', marginBottom: 8, padding: '6px 8px', boxSizing: 'border-box' }}
@@ -49,11 +49,11 @@ export function ComponentPicker({ category, onSelect, onClose }: Props) {
             </li>
           ))}
           {filtered.length === 0 && (
-            <li style={{ color: '#999', padding: 8 }}>Keine Treffer.</li>
+            <li style={{ color: '#999', padding: 8 }}>No results.</li>
           )}
         </ul>
         <button onClick={onClose} style={{ marginTop: 12 }}>
-          Abbrechen
+          Cancel
         </button>
       </div>
     </div>

@@ -53,13 +53,13 @@ export function PipelineDetail({ pipeline, readOnly = false, showLogs = true, on
     <div>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <button onClick={onBack} style={backBtnStyle}>← Zurück</button>
+        <button onClick={onBack} style={backBtnStyle}>← Back</button>
         <h2 style={{ margin: 0, fontSize: 18 }}>{p.metadata.name}</h2>
         <span style={{ color: '#888', fontSize: 13 }}>{p.metadata.namespace}</span>
         <PhaseBadge phase={p.status?.phase} />
         <div style={{ marginLeft: 'auto' }}>
           {!readOnly && (
-            <button onClick={onEdit} style={editBtnStyle}>Bearbeiten</button>
+            <button onClick={onEdit} style={editBtnStyle}>Edit</button>
           )}
         </div>
       </div>
@@ -115,10 +115,10 @@ export function PipelineDetail({ pipeline, readOnly = false, showLogs = true, on
       {showLogs && (
       <div style={sectionStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <h3 style={{ ...sectionTitleStyle, margin: 0 }}>Live-Logs</h3>
+          <h3 style={{ ...sectionTitleStyle, margin: 0 }}>Live Logs</h3>
           <span style={wsStateBadgeStyle(wsState)}>{wsState}</span>
           {wsState === 'open' && (
-            <button onClick={togglePause} title={paused ? 'Fortsetzen' : 'Pausieren'}
+            <button onClick={togglePause} title={paused ? 'Resume' : 'Pause'}
               style={{ border: 'none', background: 'none', cursor: 'pointer',
                        fontSize: 14, padding: '1px 4px' }}>
               {paused ? '▶' : '⏸'}
@@ -130,16 +130,16 @@ export function PipelineDetail({ pipeline, readOnly = false, showLogs = true, on
               style={{ marginLeft: 'auto', fontSize: 12, color: '#888',
                        border: 'none', background: 'none', cursor: 'pointer' }}
             >
-              Leeren
+              Clear
             </button>
           )}
         </div>
         <pre style={logPanelStyle}>
           {logs.length === 0
             ? <span style={{ color: '#888' }}>
-                {wsState === 'connecting' ? 'Verbinde…' :
-                 wsState === 'closed' ? 'Keine Logs (Pod läuft möglicherweise nicht).' :
-                 'Warte auf Log-Ausgabe…'}
+                {wsState === 'connecting' ? 'Connecting…' :
+                 wsState === 'closed' ? 'No logs (pod may not be running).' :
+                 'Waiting for log output…'}
               </span>
             : logs.join('\n')
           }

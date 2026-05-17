@@ -15,7 +15,7 @@ function AddButton({ onClick }: IconButtonProps) {
         borderRadius: 4, border: '1px dashed #aab', background: 'none', width: '100%',
       }}
     >
-      + hinzufügen
+      + add
     </button>
   )
 }
@@ -27,7 +27,7 @@ function infoBtn(open: boolean, toggle: () => void): React.ReactElement {
     <button
       type="button"
       onClick={toggle}
-      title={open ? 'Info ausblenden' : 'Info anzeigen'}
+      title={open ? 'Hide info' : 'Show info'}
       style={{
         width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
         border: '1px solid #aab', background: open ? '#e8eeff' : 'none',

@@ -106,7 +106,7 @@ export function NestedComponentEditor({
         )
       })}
       <button onClick={() => setPicking(true)} style={addBtnStyle}>
-        + {kind.slice(0, -1)} hinzufügen
+        + add {kind.slice(0, -1)}
       </button>
       {picking && (
         <ComponentPicker

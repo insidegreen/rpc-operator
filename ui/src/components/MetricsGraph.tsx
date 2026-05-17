@@ -78,7 +78,7 @@ export function MetricsGraph({ namespace, pipelineName, isRunning }: Props) {
       <div style={sectionStyle}>
         <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600 }}>Metrics</h3>
         <p style={{ color: '#888', fontSize: 13, margin: 0 }}>
-          Prometheus nicht konfiguriert. Operator mit <code>--prometheus-url</code> starten.
+          Prometheus not configured. Start the operator with <code>--prometheus-url</code>.
         </p>
       </div>
     )
@@ -88,17 +88,17 @@ export function MetricsGraph({ namespace, pipelineName, isRunning }: Props) {
     return (
       <div style={sectionStyle}>
         <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600 }}>Metrics</h3>
-        <p style={{ color: '#888', fontSize: 13, margin: 0 }}>Pipeline läuft nicht.</p>
+        <p style={{ color: '#888', fontSize: 13, margin: 0 }}>Pipeline is not running.</p>
       </div>
     )
   }
 
   return (
     <div style={sectionStyle}>
-      <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>Metrics (letzte 30 min)</h3>
-      {error && <p style={{ color: '#c00', fontSize: 13 }}>Fehler: {error}</p>}
+      <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600 }}>Metrics (last 30 min)</h3>
+      {error && <p style={{ color: '#c00', fontSize: 13 }}>Error: {error}</p>}
       {data.length === 0 && !error ? (
-        <p style={{ color: '#888', fontSize: 13, margin: 0 }}>Keine Daten.</p>
+        <p style={{ color: '#888', fontSize: 13, margin: 0 }}>No data.</p>
       ) : (
         <ResponsiveContainer width="100%" height={200}>
           <LineChart data={data}>

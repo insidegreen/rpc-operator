@@ -113,7 +113,7 @@ export default function App() {
   }
 
   if (!authReady) {
-    return <div style={{ padding: 24, fontFamily: 'system-ui, sans-serif' }}>Laden…</div>
+    return <div style={{ padding: 24, fontFamily: 'system-ui, sans-serif' }}>Loading…</div>
   }
   if (!me) {
     return (
@@ -129,7 +129,7 @@ export default function App() {
       <Toaster position="bottom-right" richColors />
       {readOnly && (
         <div style={readOnlyBannerStyle}>
-          Read-Only-Modus — anonymer Zugriff. Editieren und Deployen sind nicht möglich.
+          Read-only mode — anonymous access. Editing and deploying are not available.
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
@@ -219,9 +219,9 @@ export default function App() {
       {view === 'editor' && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-            <button onClick={() => setView('list')} style={backLinkStyle}>← Zurück</button>
+            <button onClick={() => setView('list')} style={backLinkStyle}>← Back</button>
             <label style={{ fontSize: 14 }}>
-              Pipeline-Name&nbsp;
+              Pipeline name&nbsp;
               <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} />
             </label>
           </div>
