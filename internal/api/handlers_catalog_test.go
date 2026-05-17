@@ -25,9 +25,9 @@ func TestHandlerCatalog_ListReturnsAllItems(t *testing.T) {
 		t.Fatalf("decode: %v", err)
 	}
 	// 9 originals + 9 new (http_client×2, nats×2, aws_s3×2, sql_select, sql_insert, sql_raw)
-	// + 4 NATS (nats_jetstream×2, nats_kv×2) = 22
-	if len(result.Items) != 22 {
-		t.Errorf("expected 22 items, got %d", len(result.Items))
+	// + 4 NATS (nats_jetstream×2, nats_kv×2) + 1 (nats_request_reply processor) = 23
+	if len(result.Items) != 23 {
+		t.Errorf("expected 23 items, got %d", len(result.Items))
 	}
 }
 
