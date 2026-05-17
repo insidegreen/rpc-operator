@@ -1,0 +1,92 @@
+name: Mirror to GitHub
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+# Prevent concurrent mirror runs from racing on force-push.
+# cancel-in-progress: false ensures the second run waits rather than
+# being dropped — both runs must eventually mirror their commits.
+concurrency:
+  group: mirror-github
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # needed to push main-public branch back to Forgejo
+
+env:
+  EXCLUDE_PATHS: |
+    docs/
+    HANDOFF.md
+    .claude/
+  GITHUB_REPO: insidegreen/rpc-operator
+
+jobs:
+  mirror:
+    name: Filter and push to GitHub
+    runs-on: docker
+    container:
+      image: catthehacker/ubuntu:act-latest
+
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install git-filter-repo
+        run: |
+          set -euo pipefail
+          apt-get update -qq
+          apt-get install -y -qq git-filter-repo
+
+      - name: Configure git identity
+        run: |
+          git config --global user.email "actions@forgejo.thecloudroute.com"
+          git config --global user.name "Forgejo Actions (mirror)"
+          git config --global --add safe.directory "$PWD"
+
+      - name: Filter paths from history
+        run: |
+          set -euo pipefail
+          # Build --path arguments dynamically from EXCLUDE_PATHS env
+          args=()
+          while IFS= read -r p; do
+            [ -z "$p" ] && continue
+            args+=(--path "$p")
+          done <<< "$EXCLUDE_PATHS"
+          echo "Filtering out paths:"
+          printf '  %s\n' "${args[@]}"
+          # --invert-paths: remove the listed paths from all history
+          # --force: required because actions/checkout leaves a remote configured
+          git filter-repo --invert-paths "${args[@]}" --force
+
+      - name: Push main-public back to Forgejo
+        env:
+          FORGEJO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORGEJO_ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          # filter-repo removes all remotes by design — re-add Forgejo origin
+          forgejo_url="https://${FORGEJO_ACTOR}:${FORGEJO_TOKEN}@forgejo.thecloudroute.com/${GITHUB_REPOSITORY}.git"
+          git remote add forgejo "$forgejo_url"
+          # Force-push the filtered HEAD as branch main-public
+          git push --force forgejo HEAD:refs/heads/main-public
+          # Mirror filtered tags too
+          git push --force forgejo --tags
+
+      - name: Push to GitHub
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh_url="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPO}.git"
+          git remote add github "$gh_url"
+          # Filtered HEAD → GitHub main
+          git push --force github HEAD:refs/heads/main
+          # Filtered tags → GitHub
+          git push --force github --tags

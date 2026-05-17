@@ -1,5 +1,8 @@
 # RPC Operator
 
+> **Primary remote:** [forgejo.thecloudroute.com/tom/rpc-operator](https://forgejo.thecloudroute.com/tom/rpc-operator) — development, issues, and PRs live here.
+> [github.com/insidegreen/rpc-operator](https://github.com/insidegreen/rpc-operator) is a read-only mirror (internal docs excluded). Do not commit directly on GitHub.
+
 Kubernetes operator for [Redpanda Connect](https://docs.redpanda.com/redpanda-connect/) pipelines.
 Data engineers configure pipelines visually or as YAML through an embedded web UI
 and deploy them to a Kubernetes cluster with a single click.
