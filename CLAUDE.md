@@ -1,30 +1,30 @@
-Rolle: Du bist ein Senior Software Architekt.
-Ziel: Technisches Design und Implementierung des Redpanda Connect Operator (RPC Operator).
-Vorgehen: Iterativ, Feature by Feature
+Role: You are a Senior Software Architect.
+Goal: Technical design and implementation of the Redpanda Connect Operator (RPC Operator).
+Approach: Iterative, feature by feature.
 
-## Anforderungen
-Tech-Stack: Das System soll auf Kubernetes und Redpanda Connect Community (https://docs.redpanda.com/redpanda-connect/) basieren
-Struktur des Dokuments:
-Executive Summary: Ausführung von Redpanda Connect Pipelines in Kubernetes. UI gestütztes Monitoring und Konfiguration der Redpanda Connect Pipelines.
-Diagramme: Mermaid-Code für die Architektur.
+## Requirements
+Tech stack: The system is based on Kubernetes and Redpanda Connect Community (https://docs.redpanda.com/redpanda-connect/).
+Document structure:
+Executive Summary: Running Redpanda Connect pipelines in Kubernetes. UI-assisted monitoring and configuration of Redpanda Connect pipelines.
+Diagrams: Mermaid code for the architecture.
 
-### Kontext
+### Context
 
- Der RPC-Operator bietet eine flexible Möglichkeit Redpanda Connect (RPC) Pipelines zu konfigurieren und sie in Kubernetes betreiben zu können. Data Engineers bietet er über eine Web-Oberfläche die Möglichkeit alle Redpanda Connect Pipeline-Komponenten (Input, Processors, Output, etc.) graphisch oder als YAML zu konfigurieren. Der Data Engineer kann dann über ein einfaches Deploy seine konfigurierte Pipeline in einen Kubernetes Clsuter deployen und in der Web-Oberfläche monitoren.
+The RPC Operator provides a flexible way to configure Redpanda Connect (RPC) pipelines and run them in Kubernetes. It gives Data Engineers a web interface to configure all Redpanda Connect pipeline components (Input, Processors, Output, etc.) visually or as YAML. The Data Engineer can then deploy a configured pipeline to a Kubernetes cluster with a simple deploy action and monitor it in the web interface.
 
-## Redpanda Connect Operator – Architektur und Pipeline-Konfiguration in Kubernetes
+## Redpanda Connect Operator – Architecture and Pipeline Configuration in Kubernetes
 
-### 1. Grundkonzept
+### 1. Core Concept
 
-Redpanda Connect basiert auf Benthos - ein deklarativer Data-Streaming-Service, der komplexe Datenpipelines durch einfache, verkettete, zustandslose Verarbeitungsschritte löst. Benthos garantiert at-least-once-Delivery ohne Persistenz der Nachrichten während der Verarbeitung und unterstützt eine Vielzahl von Connectors für Input/Output. Die Pipeline-Konfiguration erfolgt über eine YAML-Datei, die Input, Processor und Output definiert. Jede Konfiguration wird als Kubernetes Custom Resource (CR) gespeichert, und pro Konfiguration wird ein dedizierter Pod gestartet, der die Pipeline ausführt.
+Redpanda Connect is based on Benthos — a declarative data-streaming service that solves complex data pipelines through simple, chained, stateless processing steps. Benthos guarantees at-least-once delivery without persisting messages during processing and supports a wide range of connectors for input/output. Pipeline configuration is done via a YAML file that defines the input, processor, and output. Each configuration is stored as a Kubernetes Custom Resource (CR), and one dedicated pod is started per configuration to execute the pipeline.
 
-Quellen:
+Sources:
 - https://github.com/redpanda-data/connect
 - https://github.com/redpanda-data/benthos
 
-### 2. Pipeline-Konfiguration
+### 2. Pipeline Configuration
 
-Beispielkonfiguration:
+Example configuration:
 ```
 input:
   stdin: {}
@@ -35,26 +35,26 @@ output:
   stdout: {}
 ```
 
-Input/Output: Unterstützt u. a. stdin, stdout, aber auch Kafka, HTTP, Dateisysteme etc.
-Processors: Ermöglichen Transformationen wie Mapping, Filterung, Aggregation etc.
+Input/Output: Supports stdin, stdout, as well as Kafka, HTTP, filesystems, etc.
+Processors: Enable transformations such as mapping, filtering, aggregation, etc.
 
-### 3. Kubernetes-Integration
+### 3. Kubernetes Integration
 
-Custom Resource Definition (CRD): RPC-Operator nutzt eine CRD, um Pipeline-Konfigurationen als Kubernetes-Ressourcen zu speichern. Der RPC-Operator überwacht die CRs der CRDs und erstellt pro Konfiguration einen Pod, der die Pipeline ausführt.
-Operator-Pattern: Der RPC-Operator ist ein Kubernetes Controller, der die Lebenszyklen der Pipelines verwaltet (Skalierung, Monitoring, Fehlerbehandlung)
-Pods: Jeder Pipeline-Pod erhält eine Redpanda Connect Konfiguration (Input, Processor, Output) und führt die Pipeline als eigenständige Einheit mittels Redpanda Connect aus.
+Custom Resource Definition (CRD): The RPC Operator uses a CRD to store pipeline configurations as Kubernetes resources. The RPC Operator watches the CRs of the CRDs and creates one pod per configuration to execute the pipeline.
+Operator pattern: The RPC Operator is a Kubernetes controller that manages the lifecycle of pipelines (scaling, monitoring, error handling).
+Pods: Each pipeline pod receives a Redpanda Connect configuration (Input, Processor, Output) and executes the pipeline as a self-contained unit using Redpanda Connect.
 
-### 4. Vorteile
+### 4. Benefits
 
-Einfache Bereitstellung: Pipelines werden als Kubernetes-Ressourcen verwaltet und können per kubectl deployt/monitored werden.
-Skalierbarkeit: Jede Pipeline läuft in einem eigenen Pod, was horizontale Skalierung ermöglicht.
-Resilienz: At-least-once-Delivery und Backpressure-Mechanismen sorgen für zuverlässige Datenverarbeitung.
+Simple deployment: Pipelines are managed as Kubernetes resources and can be deployed/monitored via kubectl.
+Scalability: Each pipeline runs in its own pod, enabling horizontal scaling.
+Resilience: At-least-once delivery and backpressure mechanisms ensure reliable data processing.
 
-## Spezifikationen
+## Specifications
 
-Alle Design-Entscheidung liegen in `docs/`. Lese immer relevante Specs bevor implementiert wird:
+All design decisions are located in `docs/`. Always read the relevant specs before implementing:
 
-- `docs/prd.md` - Product Requirements mit Implementierungsstatus auf Release Ebene.
-- `docs/architecture.md` - System Architektur, Tech Stack.
-- `docs/adrs/*` - Dicision Log in Form von ADRs.
-- `docs/prps/*` - Product Requirements Prompt, Feature Implementation Plan
+- `docs/prd.md` — Product requirements with implementation status at the release level.
+- `docs/architecture.md` — System architecture, tech stack.
+- `docs/adrs/*` — Decision log in the form of ADRs.
+- `docs/prps/*` — Product Requirements Prompts, feature implementation plans.
