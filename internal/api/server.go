@@ -39,6 +39,9 @@ type Server struct {
 	AnonymousLogs   bool            // F42: when true (and AuthEnabled), WS /logs passes without a token; separate from AnonymousRead because log content can leak payloads
 	Scheme          *runtime.Scheme // F20a: scheme for per-request controller-runtime clients
 	RestConfig      *rest.Config    // F20a: base config (host + CA) for per-request clients; never mutated directly
+	OIDC            *OIDCConfig     // F20b: when nil, OIDC routes are not registered and Whoami reports oidcEnabled=false
+	oidcRT          oidcRuntime     // F20b: lazy-initialized provider + verifier + oauth2 config
+	oidcStore       *sessionStore   // F20b: in-memory session store; nil when OIDC is disabled
 	srv             *http.Server
 }
 
@@ -46,10 +49,13 @@ type Server struct {
 var _ manager.Runnable = (*Server)(nil)
 
 // New constructs a Server. Returns an error if the embedded catalog fails to load.
+// oidcCfg may be nil — in that case F20b OIDC routes are not registered and
+// Whoami reports oidcEnabled=false.
 func New(
 	addr string, c client.Client, restCfg *rest.Config, scheme *runtime.Scheme,
 	prometheusURL string, watchNamespaces []string,
 	authEnabled, anonymousRead, anonymousLogs bool,
+	oidcCfg *OIDCConfig,
 ) (*Server, error) {
 	cat, err := catalog.Default()
 	if err != nil {
@@ -59,7 +65,7 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("build clientset: %w", err)
 	}
-	return &Server{
+	s := &Server{
 		Addr:            addr,
 		Client:          c,
 		Clientset:       cs,
@@ -71,7 +77,12 @@ func New(
 		AnonymousLogs:   anonymousLogs,
 		Scheme:          scheme,
 		RestConfig:      restCfg,
-	}, nil
+		OIDC:            oidcCfg,
+	}
+	if oidcCfg != nil {
+		s.oidcStore = newSessionStore(oidcSessionTTL)
+	}
+	return s, nil
 }
 
 // Start implements manager.Runnable. Called by the manager once the cache is synced.
@@ -79,6 +90,7 @@ func (s *Server) Start(ctx context.Context) error {
 	log := logf.FromContext(ctx).WithName("api")
 	mux := http.NewServeMux()
 	s.registerRoutes(mux)
+	s.startSessionStoreGC(ctx, 2*time.Minute)
 	s.srv = &http.Server{
 		Addr:              s.Addr,
 		Handler:           mux,
@@ -160,6 +172,17 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	// Metrics — anonymous-eligible (F42).
 	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelines/{name}/metrics",
 		s.authOrAnonymous(s.allowlist(s.handleMetrics)))
+
+	// F20b: OIDC PKCE login. Routes are only registered when OIDC is configured;
+	// when disabled, the paths return Go's default 404 (cleaner than 503/500).
+	// All four endpoints are intentionally unauthenticated — the IdP and the
+	// cookie-bound session are the trust anchors, not the F20a Bearer token.
+	if s.OIDC != nil {
+		mux.HandleFunc("GET /api/v1/auth/login", s.handleOIDCLogin)
+		mux.HandleFunc("GET /api/v1/auth/callback", s.handleOIDCCallback)
+		mux.HandleFunc("POST /api/v1/auth/refresh", s.handleOIDCRefresh)
+		mux.HandleFunc("POST /api/v1/auth/logout", s.handleOIDCLogout)
+	}
 
 	// Serve the embedded SPA. Must come after all /api/v1/ routes (catch-all).
 	sub, err := fs.Sub(StaticFiles, "static")

@@ -159,12 +159,14 @@ func (s *Server) clientsetForRequest(r *http.Request) (*kubernetes.Clientset, er
 // Mode C (F42 anonymous-read, no token): anonymous + readOnly=true.
 // Mode B authenticated: result of K8s SelfSubjectReview using the user's token.
 func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
+	oidcEnabled := s.OIDC != nil
 	if !s.AuthEnabled {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"user":          map[string]any{"name": AnonymousUser},
 			"anonymous":     true,
 			"readOnly":      false,
 			"anonymousLogs": true, // Mode A — everything is allowed
+			"oidcEnabled":   oidcEnabled,
 		})
 		return
 	}
@@ -174,6 +176,7 @@ func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
 			"anonymous":     true,
 			"readOnly":      true,
 			"anonymousLogs": s.AnonymousLogs,
+			"oidcEnabled":   oidcEnabled,
 		})
 		return
 	}
@@ -198,5 +201,6 @@ func (s *Server) handleWhoami(w http.ResponseWriter, r *http.Request) {
 		"anonymous":     false,
 		"readOnly":      false,
 		"anonymousLogs": s.AnonymousLogs,
+		"oidcEnabled":   oidcEnabled,
 	})
 }

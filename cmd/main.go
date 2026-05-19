@@ -71,6 +71,11 @@ func main() {
 	var authEnabled bool
 	var anonymousRead bool
 	var anonymousLogs bool
+	var oidcIssuer string
+	var oidcClientID string
+	var oidcScopesRaw string
+	var oidcRedirectURL string
+	var oidcUIRedirectURL string
 	var secureMetrics bool
 	var enableHTTP2 bool
 	var tlsOpts []func(*tls.Config)
@@ -102,6 +107,16 @@ func main() {
 	flag.BoolVar(&anonymousLogs, "anonymous-logs-enabled", false,
 		"F42: Allow unauthenticated log-stream WS connections. "+
 			"Requires --auth-enabled=true. Log content may contain payloads/secrets.")
+	flag.StringVar(&oidcIssuer, "oidc-issuer", "",
+		"F20b: OIDC issuer URL (empty = OIDC disabled; F20a token-paste remains).")
+	flag.StringVar(&oidcClientID, "oidc-client-id", "",
+		"F20b: OIDC client ID registered at the IdP. Public client (PKCE).")
+	flag.StringVar(&oidcScopesRaw, "oidc-scopes", "openid,profile,email,offline_access",
+		"F20b: comma-separated OIDC scopes. offline_access is required for refresh tokens.")
+	flag.StringVar(&oidcRedirectURL, "oidc-redirect-url", "",
+		"F20b: full public callback URL (https://<host>/api/v1/auth/callback). Must match the IdP registration.")
+	flag.StringVar(&oidcUIRedirectURL, "oidc-ui-redirect-url", "",
+		"F20b: where the browser lands after callback success. Empty defaults to '/' (same-origin SPA).")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	opts := zap.Options{
@@ -122,6 +137,24 @@ func main() {
 	}
 	if authEnabled && anonymousLogs {
 		setupLog.Info("ANONYMOUS LOG STREAMING ENABLED — unauthenticated /logs allowed (F42)")
+	}
+
+	var oidcCfg *api.OIDCConfig
+	if oidcIssuer != "" {
+		if !authEnabled {
+			setupLog.Error(nil, "OIDC requires --auth-enabled=true (F20b is additive on F20a)")
+			os.Exit(1)
+		}
+		oidcCfg = &api.OIDCConfig{
+			Issuer:        oidcIssuer,
+			ClientID:      oidcClientID,
+			Scopes:        parseCSV(oidcScopesRaw),
+			RedirectURL:   oidcRedirectURL,
+			UIRedirectURL: oidcUIRedirectURL,
+		}
+		setupLog.Info("OIDC enabled (F20b)", "issuer", oidcIssuer, "clientID", oidcClientID)
+	} else {
+		setupLog.Info("OIDC disabled — F20a token-paste only")
 	}
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
@@ -240,6 +273,7 @@ func main() {
 			apiAddr, mgr.GetClient(), mgr.GetConfig(), mgr.GetScheme(),
 			prometheusURL, watchNamespaces,
 			authEnabled, anonymousRead, anonymousLogs,
+			oidcCfg,
 		)
 		if err != nil {
 			setupLog.Error(err, "Failed to create API server")
@@ -265,6 +299,27 @@ func main() {
 		setupLog.Error(err, "Failed to run manager")
 		os.Exit(1)
 	}
+}
+
+// parseCSV splits a comma-separated string, trims whitespace, drops empty
+// entries. Returns nil for empty input so callers can pass it straight to
+// an `omitempty`-style consumer (here: oauth2.Config.Scopes).
+func parseCSV(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // parseWatchNamespaces splits a comma-separated namespace list, trims whitespace,
