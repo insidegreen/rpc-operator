@@ -55,6 +55,29 @@ anonymous:
   logs:
     enabled: false
 
+# F20b: OIDC PKCE login (additive on F20a Bearer-Token-Layer). Public OAuth 2.0
+# client — kein client_secret noetig, PKCE S256 schuetzt den Auth-Code.
+#
+# Voraussetzung: Der Kubernetes-Apiserver muss mit denselben Werten konfiguriert
+# sein (`--oidc-issuer-url=<issuer>`, `--oidc-client-id=<clientID>`), sonst
+# weist er den `id_token` mit 401 zurueck.
+#
+# `redirectURL` und `uiRedirectURL` muessen aus dem Browser erreichbar sein.
+# Bei Ingress: typischerweise `https://<ingress.host>/api/v1/auth/callback`
+# bzw. `https://<ingress.host>/`. Der Wert in `redirectURL` MUSS exakt der
+# beim IdP registrierten Redirect-URI entsprechen.
+#
+# `scopes` enthaelt standardmaessig `offline_access` — ohne dieses Scope
+# emittieren die meisten IdPs keinen Refresh-Token, der Backend-Cache bleibt
+# dann leer und `/auth/refresh` failt immer (UI fallback: erneuter SSO-Login).
+oidc:
+  enabled: false
+  issuer: ""             # z.B. https://keycloak.example.com/realms/platform
+  clientID: ""           # OAuth 2.0 Client-ID (public client mit PKCE)
+  scopes: "openid,profile,email,offline_access"
+  redirectURL: ""        # https://<host>/api/v1/auth/callback (muss am IdP registriert sein)
+  uiRedirectURL: ""      # https://<host>/ (Browser landet hier nach Callback; leer = "/")
+
 # Leader election adds resilience for >1 replica. v0.7 default off
 # (single-pod DEV setup; enabling requires extra Role for leases that this
 # chart does not yet ship).

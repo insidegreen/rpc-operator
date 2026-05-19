@@ -1,6 +1,14 @@
 {{- if and (not .Values.auth.enabled) (or .Values.anonymous.read.enabled .Values.anonymous.logs.enabled) -}}
 {{- fail "F42 (anonymous.*.enabled) requires auth.enabled=true. Modes A (auth off) and C (auth on + anonymous reads) are mutually exclusive." -}}
 {{- end -}}
+{{- if .Values.oidc.enabled -}}
+  {{- if not .Values.auth.enabled -}}
+    {{- fail "F20b (oidc.enabled=true) requires auth.enabled=true." -}}
+  {{- end -}}
+  {{- if or (eq .Values.oidc.issuer "") (eq .Values.oidc.clientID "") (eq .Values.oidc.redirectURL "") -}}
+    {{- fail "F20b: oidc.issuer, oidc.clientID and oidc.redirectURL must be non-empty when oidc.enabled=true." -}}
+  {{- end -}}
+{{- end -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -61,6 +69,15 @@ spec:
             - --auth-enabled={{ .Values.auth.enabled }}
             - --anonymous-read-enabled={{ .Values.anonymous.read.enabled }}
             - --anonymous-logs-enabled={{ .Values.anonymous.logs.enabled }}
+            {{- if .Values.oidc.enabled }}
+            - --oidc-issuer={{ .Values.oidc.issuer }}
+            - --oidc-client-id={{ .Values.oidc.clientID }}
+            - --oidc-scopes={{ .Values.oidc.scopes }}
+            - --oidc-redirect-url={{ .Values.oidc.redirectURL }}
+            {{- with .Values.oidc.uiRedirectURL }}
+            - --oidc-ui-redirect-url={{ . }}
+            {{- end }}
+            {{- end }}
           ports:
             - name: health
               containerPort: 8081
