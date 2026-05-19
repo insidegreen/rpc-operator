@@ -6,12 +6,17 @@ import { parseKubeconfigToken, setToken, clearToken } from '../auth'
 export function LoginScreen({
   onLoggedIn,
   onCancel,
+  oidcEnabled,
 }: {
   onLoggedIn: () => void
   /** F44: when set, renders a Cancel button that calls clearToken() + onCancel().
    *  Used in Mode C (anonymous read-only) to return to the read-only view without
    *  forcing the user to authenticate. Mode B (auth strict) omits it. */
   onCancel?: () => void
+  /** F20b: when true, renders a prominent "Log in with SSO" button that
+   *  redirects to /api/v1/auth/login (the PKCE flow). Token-paste stays
+   *  available as a fallback for SA tokens, CI/CD bots, and IdP outages. */
+  oidcEnabled?: boolean
 }) {
   const [tokenText, setTokenText] = useState('')
   const [busy, setBusy] = useState(false)
@@ -51,9 +56,23 @@ export function LoginScreen({
     <div style={containerStyle}>
       <h2 style={{ margin: 0 }}>Login</h2>
       <p style={{ color: '#666', fontSize: 14, margin: '8px 0 24px' }}>
-        Paste a Bearer token or upload a Kubeconfig file
-        (only the token will be extracted; certificate-based auth is not supported).
+        {oidcEnabled
+          ? 'Log in with single sign-on, or paste a Bearer token below as a fallback.'
+          : 'Paste a Bearer token or upload a Kubeconfig file (only the token will be extracted; certificate-based auth is not supported).'}
       </p>
+
+      {oidcEnabled && (
+        <>
+          <button
+            onClick={() => { window.location.href = '/api/v1/auth/login' }}
+            disabled={busy}
+            style={ssoBtnStyle}
+          >
+            Log in with SSO
+          </button>
+          <div style={dividerStyle}>or use a Bearer token</div>
+        </>
+      )}
 
       <label style={{ fontSize: 13, color: '#444' }}>Bearer Token</label>
       <textarea
@@ -130,4 +149,25 @@ const cancelBtnStyle: React.CSSProperties = {
   cursor: 'pointer',
   fontSize: 14,
   marginLeft: 'auto',
+}
+const ssoBtnStyle: React.CSSProperties = {
+  display: 'block',
+  width: '100%',
+  padding: '12px 16px',
+  background: '#3b82f6',
+  color: '#fff',
+  border: 'none',
+  borderRadius: 4,
+  cursor: 'pointer',
+  fontSize: 15,
+  fontWeight: 500,
+  marginBottom: 16,
+}
+const dividerStyle: React.CSSProperties = {
+  textAlign: 'center',
+  color: '#999',
+  fontSize: 12,
+  margin: '8px 0 16px',
+  textTransform: 'uppercase',
+  letterSpacing: 1,
 }

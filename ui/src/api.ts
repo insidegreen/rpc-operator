@@ -32,10 +32,38 @@ export interface WhoamiResponse {
   readOnly: boolean
   /** F42: server's anonymous.logs.enabled. Only relevant when anonymous=true. */
   anonymousLogs: boolean
+  /** F20b: backend has an OIDC issuer configured. UI shows the SSO button when true. */
+  oidcEnabled: boolean
 }
 
 export async function whoami(): Promise<WhoamiResponse> {
   return request<WhoamiResponse>('GET', '/auth/whoami')
+}
+
+// F20b: exchanges the backend-cached refresh_token for a fresh id_token.
+// Carries the OIDC session cookie via credentials: include. Throws on failure
+// (no session, IdP rejection, etc.) so callers can fall back to a fresh login.
+export async function refreshOIDC(): Promise<string> {
+  const resp = await fetch(BASE + '/auth/refresh', {
+    method: 'POST',
+    credentials: 'include',
+  })
+  if (!resp.ok) {
+    throw Object.assign(new Error('refresh failed: ' + resp.status), { status: resp.status })
+  }
+  const data = (await resp.json()) as { id_token: string }
+  if (!data.id_token) throw new Error('refresh response missing id_token')
+  return data.id_token
+}
+
+// F20b: best-effort backend logout — removes the cached refresh_token and
+// expires the session cookie. Never throws; UI logout proceeds regardless.
+export async function oidcLogout(): Promise<void> {
+  try {
+    await fetch(BASE + '/auth/logout', { method: 'POST', credentials: 'include' })
+  } catch {
+    // swallow — UI clears its local token next, which is what really matters
+  }
 }
 
 export async function listCatalog(): Promise<CatalogComponent[]> {

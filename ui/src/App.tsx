@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Toaster, toast } from 'sonner'
 import {
   listCatalog, getPipeline, listNamespaces, whoami,
-  stopPipeline, runPipeline, type WhoamiResponse,
+  stopPipeline, runPipeline, refreshOIDC, oidcLogout,
+  type WhoamiResponse,
 } from './api'
-import { clearToken } from './auth'
+import { clearToken, setToken } from './auth'
 import benthosLogo from './assets/benthos-logo.svg'
 import { PipelineEditor } from './components/PipelineEditor'
 import { PipelineList } from './components/PipelineList'
@@ -38,17 +39,43 @@ export default function App() {
   const [loginOverlay, setLoginOverlay] = useState(false)
 
   useEffect(() => {
+    // F20b: when the OIDC callback redirected us back with #id_token=... in the
+    // URL fragment, pick it up before the first whoami so the very first call
+    // is already authenticated. history.replaceState scrubs the fragment so a
+    // reload or share-link does not leak the token.
+    if (window.location.hash.startsWith('#id_token=')) {
+      const t = decodeURIComponent(window.location.hash.slice('#id_token='.length))
+      if (t) setToken(t)
+      history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+
     whoami()
       .then(r => { setMe(r); setAuthReady(true) })
       .catch(() => { setMe(null); setAuthReady(true) })
-    // F44: on auth-expire (server 401 after a stored token), re-resolve via whoami.
-    // Mode C anonymous returns 200 → stay logged out in read-only view.
-    // Mode B strict returns 401 → whoami throws → setMe(null) → LoginScreen.
-    const onExpire = () => {
+    // F44 + F20b: on auth-expire (server 401 after a stored token), re-resolve.
+    // When OIDC is enabled, try a silent refresh first — Mode B users keep
+    // working without an IdP roundtrip. On any refresh failure, fall back to
+    // whoami (Mode C stays anonymous; Mode B strict drops to LoginScreen).
+    const onExpire = async () => {
+      if (me?.oidcEnabled) {
+        try {
+          const newToken = await refreshOIDC()
+          setToken(newToken)
+          const r = await whoami()
+          setMe(r)
+          return
+        } catch {
+          // fall through to plain whoami refresh
+        }
+      }
       whoami().then(setMe).catch(() => setMe(null))
     }
     window.addEventListener('rpc-auth-expired', onExpire)
     return () => window.removeEventListener('rpc-auth-expired', onExpire)
+    // me.oidcEnabled is read inside onExpire by closure; updating it would
+    // re-register the listener unnecessarily. The flag is server-config and
+    // does not change at runtime, so the stale-closure risk is benign.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -115,10 +142,14 @@ export default function App() {
     setLoginOverlay(true)
   }
 
-  // F44: logout that works in both Mode B and Mode C. After clearing the token,
-  // re-resolve via whoami: 200 anonymous (Mode A or C) → stay in anonymous view;
-  // 401 (Mode B strict) → setMe(null) → LoginScreen.
+  // F44 + F20b: logout that works in both Mode B and Mode C. When OIDC is on,
+  // first drop the backend-side session (best-effort, never blocks the UI).
+  // Then clear the local token and re-resolve via whoami: 200 anonymous (Mode A
+  // or C) → stay in anonymous view; 401 (Mode B strict) → LoginScreen.
   async function handleLogout() {
+    if (me?.oidcEnabled) {
+      await oidcLogout()
+    }
     clearToken()
     setLoginOverlay(false)
     try {
@@ -189,6 +220,7 @@ export default function App() {
               .catch(() => setMe(null))
           }}
           onCancel={cancelLogin}
+          oidcEnabled={me?.oidcEnabled}
         />
       </>
     )
