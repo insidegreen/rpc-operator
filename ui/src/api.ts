@@ -3,7 +3,12 @@ import { getToken, clearToken } from './auth'
 
 const BASE = '/api/v1'
 
-export async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+export async function request<T>(
+  method: string,
+  path: string,
+  body?: unknown,
+  opts?: { suppressAuthExpired?: boolean },
+): Promise<T> {
   const headers: Record<string, string> = {}
   if (body !== undefined) headers['Content-Type'] = 'application/json'
   const token = getToken()
@@ -15,7 +20,12 @@ export async function request<T>(method: string, path: string, body?: unknown): 
   })
   if (resp.status === 401) {
     clearToken()
-    window.dispatchEvent(new CustomEvent('rpc-auth-expired'))
+    // rpc-auth-expired re-resolves auth via whoami. whoami itself must NOT fire
+    // it — its 401 is the terminal "not authenticated" signal handled by the
+    // caller's .catch; re-dispatching here loops whoami → onExpire → whoami.
+    if (!opts?.suppressAuthExpired) {
+      window.dispatchEvent(new CustomEvent('rpc-auth-expired'))
+    }
   }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: resp.statusText }))
@@ -37,7 +47,13 @@ export interface WhoamiResponse {
 }
 
 export async function whoami(): Promise<WhoamiResponse> {
-  return request<WhoamiResponse>('GET', '/auth/whoami')
+  return request<WhoamiResponse>('GET', '/auth/whoami', undefined, { suppressAuthExpired: true })
+}
+
+// F20b: token-free capabilities probe. Lets the login screen show the SSO
+// button in Mode B strict, where whoami 401s before the user has a token.
+export async function authConfig(): Promise<{ oidcEnabled: boolean }> {
+  return request<{ oidcEnabled: boolean }>('GET', '/auth/config')
 }
 
 // F20b: exchanges the backend-cached refresh_token for a fresh id_token.

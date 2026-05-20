@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Toaster, toast } from 'sonner'
 import {
-  listCatalog, getPipeline, listNamespaces, whoami,
+  listCatalog, getPipeline, listNamespaces, whoami, authConfig,
   stopPipeline, runPipeline, refreshOIDC, oidcLogout,
   type WhoamiResponse,
 } from './api'
@@ -37,6 +37,11 @@ export default function App() {
   // F44: when true, render LoginScreen on top of the current state.
   // Used in Mode C when the user clicks the "Log in" banner button.
   const [loginOverlay, setLoginOverlay] = useState(false)
+  // F20b: OIDC availability from the token-free /auth/config probe. Needed
+  // pre-login because whoami 401s in Mode B strict. The ref mirrors it so the
+  // once-registered onExpire listener reads the live value, not a stale closure.
+  const [oidcEnabled, setOidcEnabled] = useState(false)
+  const oidcEnabledRef = useRef(false)
 
   useEffect(() => {
     // F20b: when the OIDC callback redirected us back with #id_token=... in the
@@ -49,6 +54,12 @@ export default function App() {
       history.replaceState(null, '', window.location.pathname + window.location.search)
     }
 
+    // F20b: token-free probe so the SSO button can render before login (whoami
+    // 401s in Mode B strict). Mirror into the ref for the onExpire closure.
+    authConfig()
+      .then(c => { setOidcEnabled(c.oidcEnabled); oidcEnabledRef.current = c.oidcEnabled })
+      .catch(() => { /* probe failure → no SSO button, token-paste still works */ })
+
     whoami()
       .then(r => { setMe(r); setAuthReady(true) })
       .catch(() => { setMe(null); setAuthReady(true) })
@@ -57,7 +68,7 @@ export default function App() {
     // working without an IdP roundtrip. On any refresh failure, fall back to
     // whoami (Mode C stays anonymous; Mode B strict drops to LoginScreen).
     const onExpire = async () => {
-      if (me?.oidcEnabled) {
+      if (oidcEnabledRef.current) {
         try {
           const newToken = await refreshOIDC()
           setToken(newToken)
@@ -72,9 +83,8 @@ export default function App() {
     }
     window.addEventListener('rpc-auth-expired', onExpire)
     return () => window.removeEventListener('rpc-auth-expired', onExpire)
-    // me.oidcEnabled is read inside onExpire by closure; updating it would
-    // re-register the listener unnecessarily. The flag is server-config and
-    // does not change at runtime, so the stale-closure risk is benign.
+    // onExpire reads OIDC availability via oidcEnabledRef (not a captured value),
+    // so the once-registered listener always sees the live flag. Effect runs once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -220,7 +230,7 @@ export default function App() {
               .catch(() => setMe(null))
           }}
           onCancel={cancelLogin}
-          oidcEnabled={me?.oidcEnabled}
+          oidcEnabled={oidcEnabled}
         />
       </>
     )
