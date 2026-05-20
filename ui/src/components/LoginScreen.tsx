@@ -20,6 +20,10 @@ export function LoginScreen({
 }) {
   const [tokenText, setTokenText] = useState('')
   const [busy, setBusy] = useState(false)
+  // F20b: with OIDC on, the Bearer-token fallback starts collapsed so the
+  // default screen is just the SSO button. With OIDC off it stays expanded —
+  // token paste is the only way in, unchanged from F20a.
+  const [showTokenInput, setShowTokenInput] = useState(!oidcEnabled)
 
   async function tryLogin(rawToken: string) {
     const trimmed = rawToken.trim()
@@ -57,46 +61,57 @@ export function LoginScreen({
       <h2 style={{ margin: 0 }}>Login</h2>
       <p style={{ color: '#666', fontSize: 14, margin: '8px 0 24px' }}>
         {oidcEnabled
-          ? 'Log in with single sign-on, or paste a Bearer token below as a fallback.'
+          ? 'Log in with single sign-on. For automation or break-glass access, use a Bearer token.'
           : 'Paste a Bearer token or upload a Kubeconfig file (only the token will be extracted; certificate-based auth is not supported).'}
       </p>
 
       {oidcEnabled && (
+        <button
+          onClick={() => { window.location.href = '/api/v1/auth/login' }}
+          disabled={busy}
+          style={ssoBtnStyle}
+        >
+          Log in with SSO
+        </button>
+      )}
+
+      {oidcEnabled && !showTokenInput && (
+        <button onClick={() => setShowTokenInput(true)} style={toggleLinkStyle}>
+          Log in with a Bearer token instead
+        </button>
+      )}
+
+      {showTokenInput && (
         <>
-          <button
-            onClick={() => { window.location.href = '/api/v1/auth/login' }}
-            disabled={busy}
-            style={ssoBtnStyle}
-          >
-            Log in with SSO
-          </button>
-          <div style={dividerStyle}>or use a Bearer token</div>
+          {oidcEnabled && <div style={dividerStyle}>or use a Bearer token</div>}
+          <label style={{ fontSize: 13, color: '#444' }}>Bearer Token</label>
+          <textarea
+            value={tokenText}
+            onChange={e => setTokenText(e.target.value)}
+            placeholder="eyJhbGciOiJSUzI1NiIs…"
+            style={textareaStyle}
+            rows={6}
+          />
+
+          <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'center' }}>
+            <button onClick={() => tryLogin(tokenText)} disabled={busy} style={primaryBtn}>
+              Log in
+            </button>
+            <label style={fileLabel}>
+              Upload Kubeconfig
+              <input
+                type="file"
+                accept=".yaml,.yml,.conf,application/yaml,text/yaml"
+                onChange={e => e.target.files?.[0] && onFile(e.target.files[0])}
+                style={{ display: 'none' }}
+              />
+            </label>
+          </div>
         </>
       )}
 
-      <label style={{ fontSize: 13, color: '#444' }}>Bearer Token</label>
-      <textarea
-        value={tokenText}
-        onChange={e => setTokenText(e.target.value)}
-        placeholder="eyJhbGciOiJSUzI1NiIs…"
-        style={textareaStyle}
-        rows={6}
-      />
-
-      <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: 'center' }}>
-        <button onClick={() => tryLogin(tokenText)} disabled={busy} style={primaryBtn}>
-          Log in
-        </button>
-        <label style={fileLabel}>
-          Upload Kubeconfig
-          <input
-            type="file"
-            accept=".yaml,.yml,.conf,application/yaml,text/yaml"
-            onChange={e => e.target.files?.[0] && onFile(e.target.files[0])}
-            style={{ display: 'none' }}
-          />
-        </label>
-        {onCancel && (
+      {onCancel && (
+        <div style={{ display: 'flex', marginTop: 16 }}>
           <button
             onClick={() => { clearToken(); onCancel() }}
             disabled={busy}
@@ -104,8 +119,8 @@ export function LoginScreen({
           >
             Back to read-only view
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -162,6 +177,17 @@ const ssoBtnStyle: React.CSSProperties = {
   fontSize: 15,
   fontWeight: 500,
   marginBottom: 16,
+}
+const toggleLinkStyle: React.CSSProperties = {
+  display: 'block',
+  width: '100%',
+  padding: '4px 0',
+  background: 'transparent',
+  border: 'none',
+  color: '#3b82f6',
+  fontSize: 13,
+  cursor: 'pointer',
+  textAlign: 'center',
 }
 const dividerStyle: React.CSSProperties = {
   textAlign: 'center',
