@@ -31,6 +31,7 @@ type PipelineClusterSpec struct {
 	// +optional
 	Replicas int32 `json:"replicas,omitempty"`
 
+	// Image is the Redpanda Connect container image used for each instance.
 	// +kubebuilder:default="docker.redpanda.com/redpandadata/connect:4"
 	// +optional
 	Image string `json:"image,omitempty"`
@@ -58,6 +59,7 @@ const (
 
 // PipelineClusterStatus defines the observed state of a PipelineCluster.
 type PipelineClusterStatus struct {
+	// Phase is the high-level lifecycle stage of the cluster.
 	// +optional
 	Phase PipelineClusterPhase `json:"phase,omitempty"`
 
@@ -65,6 +67,7 @@ type PipelineClusterStatus struct {
 	// +optional
 	ReadyReplicas int32 `json:"readyReplicas,omitempty"`
 
+	// ObservedGeneration is the .metadata.generation this status reflects.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 

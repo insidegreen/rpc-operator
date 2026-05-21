@@ -57,6 +57,8 @@ spec:
             properties:
               image:
                 default: docker.redpanda.com/redpandadata/connect:4
+                description: Image is the Redpanda Connect container image used for
+                  each instance.
                 type: string
               jsonLogging:
                 default: true
@@ -195,11 +197,12 @@ spec:
                 - type
                 x-kubernetes-list-type: map
               observedGeneration:
+                description: ObservedGeneration is the .metadata.generation this status
+                  reflects.
                 format: int64
                 type: integer
               phase:
-                description: PipelineClusterPhase reports the high-level lifecycle
-                  stage of a cluster.
+                description: Phase is the high-level lifecycle stage of the cluster.
                 enum:
                 - Pending
                 - Ready
