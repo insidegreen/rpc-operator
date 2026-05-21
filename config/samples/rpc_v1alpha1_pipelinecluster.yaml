@@ -2,7 +2,11 @@ apiVersion: rpc.operator.io/v1alpha1
 kind: PipelineCluster
 metadata:
   name: pipelinecluster-sample
+  labels:
+    app.kubernetes.io/name: rpc-operator
+    app.kubernetes.io/managed-by: kustomize
 spec:
+  image: docker.redpanda.com/redpandadata/connect:4
   replicas: 3
   jsonLogging: true
   resources:
