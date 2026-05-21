@@ -44,6 +44,7 @@ type PipelineClusterReconciler struct {
 // +kubebuilder:rbac:groups=rpc.operator.io,resources=pipelineclusters/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile drives a PipelineCluster towards its desired state: a ConfigMap
 // (connect main config), a headless Service, and a StatefulSet of N streams-mode

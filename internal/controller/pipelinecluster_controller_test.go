@@ -88,6 +88,8 @@ var _ = Describe("PipelineCluster Controller", func() {
 		svc := &corev1.Service{}
 		Expect(k8sClient.Get(ctx, nn, svc)).To(Succeed())
 		Expect(svc.Spec.ClusterIP).To(Equal("None"))
+		Expect(svc.OwnerReferences).To(HaveLen(1))
+		Expect(svc.OwnerReferences[0].Kind).To(Equal("PipelineCluster"))
 
 		By("having a StatefulSet with the requested replicas")
 		ss := &appsv1.StatefulSet{}
