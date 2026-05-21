@@ -9,6 +9,7 @@ rules:
   resources:
   - configmaps
   - pods
+  - services
   verbs:
   - create
   - delete
@@ -31,6 +32,18 @@ rules:
   verbs:
   - get
 - apiGroups:
+  - apps
+  resources:
+  - statefulsets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - monitoring.coreos.com
   resources:
   - podmonitors
@@ -45,6 +58,7 @@ rules:
 - apiGroups:
   - rpc.operator.io
   resources:
+  - pipelineclusters
   - pipelines
   verbs:
   - create
@@ -57,12 +71,14 @@ rules:
 - apiGroups:
   - rpc.operator.io
   resources:
+  - pipelineclusters/finalizers
   - pipelines/finalizers
   verbs:
   - update
 - apiGroups:
   - rpc.operator.io
   resources:
+  - pipelineclusters/status
   - pipelines/status
   verbs:
   - get
