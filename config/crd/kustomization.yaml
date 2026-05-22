@@ -3,6 +3,7 @@
 # It should be run by config/default
 resources:
 - bases/rpc.operator.io_pipelines.yaml
+- bases/rpc.operator.io_pipelineclusters.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:
