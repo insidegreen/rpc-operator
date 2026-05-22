@@ -23,10 +23,11 @@ func TestOrdinalFromPodName(t *testing.T) {
 		{"etl-small-x", "etl-small", 0, false},
 		{"other-1", "etl-small", 0, false},
 		{"etl-small", "etl-small", 0, false},
+		{"etl-small--1", "etl-small", 0, false},
 	}
 	for _, tc := range cases {
 		got, ok := ordinalFromPodName(tc.pod, tc.cluster)
-		if ok != tc.ok || (ok && got != tc.want) {
+		if ok != tc.ok || got != tc.want {
 			t.Errorf("ordinalFromPodName(%q,%q) = (%d,%v), want (%d,%v)", tc.pod, tc.cluster, got, ok, tc.want, tc.ok)
 		}
 	}
