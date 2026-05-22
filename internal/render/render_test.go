@@ -296,4 +296,12 @@ func TestRenderStreamConfig_StripsHTTPBlock(t *testing.T) {
 	if !strings.Contains(out, "generate:") || !strings.Contains(out, "drop:") {
 		t.Errorf("stream config must contain the pipeline components, got:\n%s", out)
 	}
+
+	disp, err := render.RenderPipelineYAMLForDisplay(spec)
+	if err != nil {
+		t.Fatalf("RenderPipelineYAMLForDisplay: %v", err)
+	}
+	if disp != out {
+		t.Errorf("RenderPipelineYAMLForDisplay should equal RenderStreamConfig output")
+	}
 }
