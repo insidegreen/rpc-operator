@@ -38,6 +38,36 @@ func TestHTTPClient_EnsureStream_PUT(t *testing.T) {
 	}
 }
 
+func TestHTTPClient_EnsureStream_CreatesViaPOSTWhenAbsent(t *testing.T) {
+	// Redpanda Connect streams API: PUT updates an existing stream and returns
+	// 404 when it does not exist yet; POST creates it. EnsureStream must fall
+	// back to POST on a PUT 404.
+	var methods []string
+	var postBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		methods = append(methods, r.Method)
+		if r.Method == http.MethodPut {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		b, _ := io.ReadAll(r.Body)
+		postBody = string(b)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient()
+	if err := c.EnsureStream(context.Background(), srv.URL, "new", "input: {}\n"); err != nil {
+		t.Fatalf("EnsureStream should create via POST on PUT 404, got %v", err)
+	}
+	if len(methods) != 2 || methods[0] != http.MethodPut || methods[1] != http.MethodPost {
+		t.Errorf("expected PUT then POST, got %v", methods)
+	}
+	if postBody != "input: {}\n" {
+		t.Errorf("config body not forwarded on POST, got %q", postBody)
+	}
+}
+
 func TestHTTPClient_EnsureStream_ErrorOn500(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
