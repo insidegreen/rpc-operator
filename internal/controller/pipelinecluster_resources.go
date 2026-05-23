@@ -13,6 +13,7 @@ package controller
 import (
 	"fmt"
 
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -150,6 +151,25 @@ func buildClusterStatefulSet(
 					}},
 				},
 			},
+		},
+	}
+}
+
+// buildClusterPodMonitor returns a PodMonitor scraping all instances of a
+// cluster on the http port's /metrics. One per PipelineCluster; the per-stream
+// breakdown is done at query time (F47 Phase 3a). Namespace is set by the caller.
+func buildClusterPodMonitor(clusterName, namespace string) *monitoringv1.PodMonitor {
+	return &monitoringv1.PodMonitor{
+		ObjectMeta: metav1.ObjectMeta{Name: clusterName, Namespace: namespace},
+		Spec: monitoringv1.PodMonitorSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{clusterLabelKey: clusterName},
+			},
+			PodMetricsEndpoints: []monitoringv1.PodMetricsEndpoint{{
+				Port:     ptr.To("http"),
+				Path:     "/metrics",
+				Interval: monitoringv1.Duration("15s"),
+			}},
 		},
 	}
 }

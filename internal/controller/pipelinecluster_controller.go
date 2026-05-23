@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -98,6 +99,20 @@ func (r *PipelineClusterReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, fmt.Errorf("apply statefulset: %w", err)
 	}
 
+	// PodMonitor: scrape the cluster's instances so per-stream metrics are
+	// queryable. Graceful: skip if the monitoring CRD is not installed.
+	pm := &monitoringv1.PodMonitor{ObjectMeta: metav1.ObjectMeta{Name: cluster.Name, Namespace: cluster.Namespace}}
+	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, pm, func() error {
+		pm.Spec = buildClusterPodMonitor(cluster.Name, cluster.Namespace).Spec
+		return controllerutil.SetControllerReference(&cluster, pm, r.Scheme)
+	}); err != nil {
+		if apimeta.IsNoMatchError(err) || runtime.IsNotRegisteredError(err) {
+			// monitoring CRD not installed; skip auto-scrape setup
+		} else {
+			return ctrl.Result{}, fmt.Errorf("apply podmonitor: %w", err)
+		}
+	}
+
 	// Status: reflect ready replicas + phase + Ready condition.
 	ready := ss.Status.ReadyReplicas
 	desired := cluster.Spec.Replicas
@@ -150,6 +165,7 @@ func (r *PipelineClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Service{}).
 		Owns(&appsv1.StatefulSet{}).
+		Owns(&monitoringv1.PodMonitor{}).
 		Named("pipelinecluster").
 		Complete(r)
 }
