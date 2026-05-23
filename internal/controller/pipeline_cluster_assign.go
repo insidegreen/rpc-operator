@@ -161,6 +161,31 @@ func (r *PipelineReconciler) handleClusterAssigned(ctx context.Context, pipe *rp
 	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseRunning, cluster.Name, instance, pipe.Name, cond, resyncInterval)
 }
 
+// handleClusterFallback runs when spec.clusterRef has been cleared but the
+// pipeline still holds a stream placement. It deletes the stream on its old
+// instance, clears placement, and requeues so the next reconcile falls through
+// to the normal single-pod path. F47 Phase 2b.
+func (r *PipelineReconciler) handleClusterFallback(ctx context.Context, pipe *rpcv1alpha1.Pipeline) (ctrl.Result, error) {
+	if pipe.Status.AssignedCluster != "" && pipe.Status.AssignedInstance != "" {
+		if ord, ok := ordinalFromPodName(pipe.Status.AssignedInstance, pipe.Status.AssignedCluster); ok {
+			url := clusterPodURL(pipe.Status.AssignedCluster, pipe.Namespace, ord)
+			if err := r.Streams.DeleteStream(ctx, url, pipe.Name); err != nil {
+				return ctrl.Result{}, fmt.Errorf("delete stream on fallback: %w", err)
+			}
+		}
+	}
+	pipe.Status.AssignedCluster = ""
+	pipe.Status.AssignedInstance = ""
+	pipe.Status.StreamID = ""
+	if err := r.Status().Update(ctx, pipe); err != nil {
+		if apierrors.IsConflict(err) {
+			return ctrl.Result{Requeue: true}, nil
+		}
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{Requeue: true}, nil
+}
+
 // migrateFromOldCluster deletes the pipeline's stream on a previously assigned
 // cluster when spec.clusterRef now points at a different cluster. Idempotent:
 // DeleteStream treats a missing stream (404) as success. F47 Phase 2b.

@@ -104,6 +104,12 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return r.handleClusterAssigned(ctx, &pipe)
 	}
 
+	// F47 Phase 2b fallback: clusterRef was cleared but a stream placement remains.
+	// Tear the stream down + clear placement, then requeue into the pod path below.
+	if pipe.Status.AssignedInstance != "" {
+		return r.handleClusterFallback(ctx, &pipe)
+	}
+
 	yamlStr, err := render.RenderPipelineYAML(&pipe.Spec)
 	if err != nil {
 		log.Error(err, "render failed")

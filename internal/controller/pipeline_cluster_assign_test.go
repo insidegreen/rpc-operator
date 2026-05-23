@@ -331,6 +331,45 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(got.Status.AssignedInstance).To(Equal("c13b-0"))
 	})
 
+	It("tears the stream down and recreates the pod when clusterRef is cleared (fallback)", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "c14", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "c14", namespace, 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p14", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c14", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := assign("p14")
+		url := "http://c14-0.c14." + namespace + ".svc:4195"
+		Expect(fake.Has(url, "p14")).To(BeTrue())
+
+		got := &rpcv1alpha1.Pipeline{}
+		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
+		got.Spec.ClusterRef = ""
+		Expect(k8sClient.Update(ctx, got)).To(Succeed())
+
+		// First reconcile: tear down the stream + clear placement, then requeue.
+		res, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(res.Requeue).To(BeTrue())
+		Expect(fake.Has(url, "p14")).To(BeFalse())
+		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
+		Expect(got.Status.AssignedInstance).To(BeEmpty())
+		Expect(got.Status.AssignedCluster).To(BeEmpty())
+
+		// Second reconcile: normal pod path recreates the Pod.
+		_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		pod := &corev1.Pod{}
+		Expect(k8sClient.Get(ctx, nn, pod)).To(Succeed())
+	})
+
 	AfterEach(func() {
 		pipes := &rpcv1alpha1.PipelineList{}
 		Expect(k8sClient.List(ctx, pipes, client.InNamespace(namespace))).To(Succeed())
