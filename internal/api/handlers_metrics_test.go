@@ -279,3 +279,62 @@ func TestHandlerMetrics_RouteRegistered(t *testing.T) {
 		t.Error("route not registered — SPA catch-all intercepted request")
 	}
 }
+
+func mockPrometheusServerCapturing(t *testing.T, captured *string) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		*captured = r.URL.Query().Get("query")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"status": "success",
+			"data": map[string]any{
+				"resultType": "matrix",
+				"result": []map[string]any{
+					{"metric": map[string]string{}, "values": [][2]any{{1715000000, "1.5"}}},
+				},
+			},
+		})
+	}))
+}
+
+func validRunningClusterPipeline(name, ns, cluster, instance string) *rpcv1alpha1.Pipeline {
+	return &rpcv1alpha1.Pipeline{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		Spec: rpcv1alpha1.PipelineSpec{
+			ClusterRef: cluster,
+			Input:      rpcv1alpha1.ComponentSpec{Type: "generate"},
+			Output:     rpcv1alpha1.ComponentSpec{Type: "stdout"},
+		},
+		Status: rpcv1alpha1.PipelineStatus{
+			Phase:            rpcv1alpha1.PhaseRunning,
+			AssignedCluster:  cluster,
+			AssignedInstance: instance,
+			StreamID:         name,
+		},
+	}
+}
+
+func TestHandlerMetrics_ClusterMode_FiltersByStream(t *testing.T) {
+	var captured string
+	prom := mockPrometheusServerCapturing(t, &captured)
+	defer prom.Close()
+
+	pipe := validRunningClusterPipeline("demo", "default", "etl", "etl-0")
+	ts := newTestServerWithPrometheus(t, prom.URL, pipe)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/namespaces/default/pipelines/demo/metrics?query=throughput")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(captured, `pod="etl-0"`) {
+		t.Errorf("query missing instance pod selector: %q", captured)
+	}
+	if !strings.Contains(captured, `stream="demo"`) {
+		t.Errorf("query missing stream selector: %q", captured)
+	}
+}
