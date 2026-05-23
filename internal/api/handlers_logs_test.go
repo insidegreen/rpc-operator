@@ -69,6 +69,34 @@ func TestHandlerLogStream_NoClientset(t *testing.T) {
 	}
 }
 
+func TestHandlerLogStream_Cluster_NoClientset(t *testing.T) {
+	pipe := &rpcv1alpha1.Pipeline{
+		ObjectMeta: metav1.ObjectMeta{Name: "streamed", Namespace: "default"},
+		Spec: rpcv1alpha1.PipelineSpec{
+			ClusterRef: "etl",
+			Input:      rpcv1alpha1.ComponentSpec{Type: "generate"},
+			Output:     rpcv1alpha1.ComponentSpec{Type: "stdout"},
+		},
+		Status: rpcv1alpha1.PipelineStatus{
+			Phase:            rpcv1alpha1.PhaseRunning,
+			AssignedCluster:  "etl",
+			AssignedInstance: "etl-0",
+			StreamID:         "streamed",
+		},
+	}
+	ts := newTestServer(t, pipe)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/namespaces/default/pipelines/streamed/logs")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Errorf("expected 503 (clientset nil but cluster pod selected), got %d", resp.StatusCode)
+	}
+}
+
 func TestHandlerLogStream_RouteRegistered(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close()
