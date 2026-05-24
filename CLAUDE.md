@@ -58,3 +58,55 @@ All design decisions are located in `docs/`. Always read the relevant specs befo
 - `docs/architecture.md` — System architecture, tech stack.
 - `docs/adrs/*` — Decision log in the form of ADRs.
 - `docs/prps/*` — Product Requirements Prompts, feature implementation plans.
+
+## E2E Test Environment (ds9s3)
+
+End-to-end tests run against a real cluster — unit/envtest **cannot** reach the cluster-mode HTTP
+paths (nil clientset, no pod DNS, no Prometheus). Do **not** use kind. This section captures the
+fixed facts so you don't have to re-investigate.
+
+**Cluster & access**
+- kubeconfig context: `ds9s3-ds9k3sm1` (remote Rancher cluster). Verify with `kubectl config current-context`.
+- App namespace: `rpc-operator-poc`. Operator runs in `rpc-operator-system`.
+- **CRD short-name collision:** `kubectl get pipelines` resolves to numaflow's CRD, **not** ours.
+  Always use the fully-qualified name: `kubectl get pipelines.rpc.operator.io`.
+
+**Operator / API deployment**
+- Deployment `rpc-operator-system/rpc-operator`; image tag follows `main-<short-sha>`
+  (e.g. `forgejo.thecloudroute.com/tom/rpc-operator:main-<sha>`). Confirm the tag matches the commit
+  under test before trusting results.
+- Single binary serves controller **and** API. API service: `rpc-operator-system/rpc-operator:8082`.
+  Reach it with `kubectl -n rpc-operator-system port-forward svc/rpc-operator <local>:8082`
+  (pick a free local port — 8082 may be held by a stale forward).
+- In-cluster flags differ from `run.sh` (local dev): `--anonymous-read-enabled=false`,
+  `--anonymous-logs-enabled=false` (so a Bearer token is required), and
+  `--prometheus-url=http://prometheus-operated.cattle-monitoring-system.svc:9090`
+  (Rancher monitoring; this Prometheus must have scraped the cluster's PodMonitor for metrics to return data).
+
+**Auth for API calls**
+- Mint a token: `kubectl -n rpc-operator-poc create token tom --duration=1h`
+  (SA `tom` from `role.sh` has pipelines + pods/log read in `rpc-operator-poc`).
+- HTTP endpoints: pass `-H "Authorization: Bearer $TOK"`.
+- **WebSocket** endpoints (e.g. `/logs`) take the token as a **query param** `?token=$TOK`
+  (browsers can't set the Authorization header on a WS upgrade), **not** a header.
+
+**Tooling notes**
+- WS client: `websocat` is installed. It needs an **open stdin** or it dies with `os error 22` —
+  use `tail -f /dev/null | websocat "ws://localhost:<port>/...?token=$TOK"`. There is no `timeout`
+  on macOS; background the capture and stop it with `pkill -f websocat`.
+
+**Cluster-mode (clusterRef / streams) fixtures**
+- A ready `PipelineCluster` named `pipelinecluster-sample` (2 instances:
+  `pipelinecluster-sample-0/-1`, headless svc on `:4195`) is usually present.
+- `config/samples/rpc_v1alpha1_pipeline_clusterref.yaml` deploys a clusterRef Pipeline as a stream.
+  Placement lands in `.status` (`assignedCluster`, `assignedInstance`, `streamID == pipeline name`).
+- Endpoints to exercise (cluster mode = `status.assignedInstance != ""`):
+  - Logs (WS): `…/api/v1/namespaces/rpc-operator-poc/pipelines/<name>/logs?token=$TOK`
+    — strict-filtered to JSON log lines whose `stream` field == pipeline name.
+  - Metrics: `…/pipelines/<name>/metrics?query=<throughput|error_rate|input_rate|processor_error_rate>`
+    — builds `rate(<metric>{pod="<instance>",stream="<name>"}[1m])`.
+- **Stream-isolation check:** place ≥2 streams on the *same* instance pod; per-stream metrics/logs
+  must differ (pod-aggregate would be identical).
+- **Caveat:** a `stdout`-output pipeline writes raw untagged text to the pod log; the strict `stream`
+  filter correctly drops it, so `/logs` shows only structured system lines. Use a `log` processor
+  (emits JSON with the `stream` field) to see per-message data.
