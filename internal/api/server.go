@@ -158,6 +158,15 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/namespaces/{namespace}/pipelines/{name}/run",
 		s.authIfEnabled(s.allowlist(s.handleRun)))
 
+	// F47 Phase 3b: PipelineCluster management. Reads anonymous-eligible (F42),
+	// writes token-required — mirrors the pipeline routes above.
+	mux.HandleFunc("GET /api/v1/pipelineclusters",
+		s.authOrAnonymous(s.handleListAllClusters))
+	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelineclusters",
+		s.authOrAnonymous(s.allowlist(s.handleListNamespacedClusters)))
+	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelineclusters/{name}",
+		s.authOrAnonymous(s.allowlist(s.handleGetCluster)))
+
 	// Spec-only — no K8s touch, no auth, no allowlist. F42 anonymous-read keeps these open.
 	mux.HandleFunc("POST /api/v1/pipelines/validate", s.handleValidate)
 	mux.HandleFunc("POST /api/v1/pipelines/render", s.handleRender)
