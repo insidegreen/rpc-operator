@@ -8,8 +8,10 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
+	"github.com/insidegreen/rpc-operator-claude/internal/api"
 )
 
 // clusterObj builds a PipelineCluster for seeding the fake client.
@@ -81,10 +83,6 @@ func TestHandlerGetCluster_NotFound(t *testing.T) {
 		t.Fatalf("expected 404, got %d", resp.StatusCode)
 	}
 }
-
-// compile-time keep-alive for helpers used by later tasks (avoids "unused" until then).
-var _ = clusterPod
-var _ = clusteredPipeline
 
 // validClusterBody is a minimal valid PipelineCluster create/update body.
 func validClusterBody(name, ns string, replicas int32) []byte {
@@ -165,5 +163,55 @@ func TestHandlerDeleteCluster(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandlerClusterInstances(t *testing.T) {
+	objs := []client.Object{
+		clusterObj("etl", "default", 3, 2, rpcv1alpha1.ClusterPhaseReady),
+		clusterPod("etl-0", "default", "etl", true),
+		clusterPod("etl-1", "default", "etl", false),
+		clusteredPipeline("p1", "default", "etl", "etl-0"),
+		clusteredPipeline("p2", "default", "etl", "etl-0"),
+		clusteredPipeline("p3", "default", "etl", "etl-1"),
+		clusteredPipeline("p9", "default", "etl", "etl-5"), // stale
+	}
+	ts := newTestServer(t, objs...)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineclusters/etl/instances")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	var dist api.ClusterDistribution
+	if err := json.NewDecoder(resp.Body).Decode(&dist); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(dist.Instances) != 3 {
+		t.Fatalf("expected 3 instances, got %d", len(dist.Instances))
+	}
+	if dist.Instances[0].Name != "etl-0" || !dist.Instances[0].Ready ||
+		len(dist.Instances[0].AssignedPipelines) != 2 {
+		t.Errorf("slot0 wrong: %+v", dist.Instances[0])
+	}
+	if len(dist.StalePlacements) != 1 || dist.StalePlacements[0].Pipeline != "p9" {
+		t.Errorf("stale wrong: %+v", dist.StalePlacements)
+	}
+}
+
+func TestHandlerClusterInstances_NotFound(t *testing.T) {
+	ts := newTestServer(t)
+	defer ts.Close()
+	resp, err := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineclusters/missing/instances")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", resp.StatusCode)
 	}
 }

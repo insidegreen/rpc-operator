@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
@@ -134,4 +135,40 @@ func (s *Server) handleDeleteCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": name})
+}
+
+func (s *Server) handleClusterInstances(w http.ResponseWriter, r *http.Request) {
+	ns := r.PathValue("namespace")
+	name := r.PathValue("name")
+	c, err := s.clientForRequest(r)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "internal error", err.Error())
+		return
+	}
+	var cluster rpcv1alpha1.PipelineCluster
+	if err := c.Get(r.Context(), client.ObjectKey{Namespace: ns, Name: name}, &cluster); err != nil {
+		writeK8sError(w, err)
+		return
+	}
+
+	var pods corev1.PodList
+	if err := c.List(r.Context(), &pods, client.InNamespace(ns),
+		client.MatchingLabels{clusterLabelKey: name}); err != nil {
+		writeK8sError(w, err)
+		return
+	}
+
+	var pipelines rpcv1alpha1.PipelineList
+	if err := c.List(r.Context(), &pipelines, client.InNamespace(ns)); err != nil {
+		writeK8sError(w, err)
+		return
+	}
+	assigned := make([]rpcv1alpha1.Pipeline, 0, len(pipelines.Items))
+	for i := range pipelines.Items {
+		if pipelines.Items[i].Spec.ClusterRef == name {
+			assigned = append(assigned, pipelines.Items[i])
+		}
+	}
+
+	writeJSON(w, http.StatusOK, aggregateDistribution(&cluster, pods.Items, assigned))
 }
