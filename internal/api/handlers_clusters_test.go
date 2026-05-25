@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -213,5 +214,61 @@ func TestHandlerClusterInstances_NotFound(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandlerClusterMetrics_SumsAcrossInstances(t *testing.T) {
+	var captured string
+	prom := mockPrometheusServerCapturing(t, &captured)
+	defer prom.Close()
+
+	cl := clusterObj("etl", "default", 2, 2, rpcv1alpha1.ClusterPhaseReady)
+	ts := newTestServerWithPrometheus(t, prom.URL, cl)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineclusters/etl/metrics?query=throughput")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(captured, `sum(rate(output_sent{`) {
+		t.Errorf("query not a cluster sum: %q", captured)
+	}
+	if !strings.Contains(captured, `pod=~"etl-[0-9]+"`) {
+		t.Errorf("query missing anchored pod regex: %q", captured)
+	}
+	if !strings.Contains(captured, `namespace="default"`) {
+		t.Errorf("query missing namespace selector: %q", captured)
+	}
+}
+
+func TestHandlerClusterMetrics_UnknownQuery(t *testing.T) {
+	cl := clusterObj("etl", "default", 2, 2, rpcv1alpha1.ClusterPhaseReady)
+	ts := newTestServerWithPrometheus(t, "http://unused", cl)
+	defer ts.Close()
+	resp, err := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineclusters/etl/metrics?query=bogus")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestHandlerClusterMetrics_PrometheusUnconfigured(t *testing.T) {
+	cl := clusterObj("etl", "default", 2, 2, rpcv1alpha1.ClusterPhaseReady)
+	ts := newTestServer(t, cl) // no PrometheusURL
+	defer ts.Close()
+	resp, err := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineclusters/etl/metrics?query=throughput")
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", resp.StatusCode)
 	}
 }
