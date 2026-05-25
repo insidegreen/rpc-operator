@@ -13,6 +13,7 @@ import { PipelineDetail } from './components/PipelineDetail'
 import { RawPipelineEditor } from './components/RawPipelineEditor'
 import { DeployBar } from './components/DeployBar'
 import { LoginScreen } from './components/LoginScreen'
+import { Sidebar, type Section } from './components/Sidebar'
 import type { CatalogComponent, Pipeline, PipelineSpec } from './types'
 
 const DEFAULT_SPEC: PipelineSpec = {
@@ -25,6 +26,7 @@ type View = 'list' | 'editor' | 'raw-editor' | 'detail'
 
 export default function App() {
   const [view, setView] = useState<View>('list')
+  const [section, setSection] = useState<Section>('pipelines')
   const [namespace, setNamespace] = useState('rpc-operator-poc')
   const [name, setName] = useState('my-pipeline')
   const [spec, setSpec] = useState<PipelineSpec>(DEFAULT_SPEC)
@@ -300,51 +302,64 @@ export default function App() {
         </div>
       </div>
 
-      {view === 'list' && (
-        <PipelineList
-          namespace={namespace}
-          readOnly={readOnly}
-          onEdit={readOnly ? undefined : handleEdit}
-          onViewDetail={handleViewDetail}
-          onNew={readOnly ? undefined : handleNew}
-          onNewRaw={readOnly ? undefined : handleNewRaw}
-        />
-      )}
+      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+        <Sidebar section={section} onSelect={setSection} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {section === 'pipelines' && (
+            <>
+              {view === 'list' && (
+                <PipelineList
+                  namespace={namespace}
+                  readOnly={readOnly}
+                  onEdit={readOnly ? undefined : handleEdit}
+                  onViewDetail={handleViewDetail}
+                  onNew={readOnly ? undefined : handleNew}
+                  onNewRaw={readOnly ? undefined : handleNewRaw}
+                />
+              )}
 
-      {view === 'detail' && selectedPipeline && (
-        <PipelineDetail
-          pipeline={selectedPipeline}
-          readOnly={readOnly}
-          showLogs={!me.anonymous || me.anonymousLogs}
-          onEdit={readOnly ? () => {} : () => handleEdit(selectedPipeline)}
-          onBack={() => setView('list')}
-          onStop={readOnly ? undefined : handleStop}
-          onRun={readOnly ? undefined : handleRun}
-        />
-      )}
+              {view === 'detail' && selectedPipeline && (
+                <PipelineDetail
+                  pipeline={selectedPipeline}
+                  readOnly={readOnly}
+                  showLogs={!me.anonymous || me.anonymousLogs}
+                  onEdit={readOnly ? () => {} : () => handleEdit(selectedPipeline)}
+                  onBack={() => setView('list')}
+                  onStop={readOnly ? undefined : handleStop}
+                  onRun={readOnly ? undefined : handleRun}
+                />
+              )}
 
-      {view === 'raw-editor' && (
-        <RawPipelineEditor
-          namespace={namespace}
-          editPipeline={editPipeline}
-          onBack={() => setView('list')}
-          onSaved={() => setView('list')}
-        />
-      )}
+              {view === 'raw-editor' && (
+                <RawPipelineEditor
+                  namespace={namespace}
+                  editPipeline={editPipeline}
+                  onBack={() => setView('list')}
+                  onSaved={() => setView('list')}
+                />
+              )}
 
-      {view === 'editor' && (
-        <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-            <button onClick={() => setView('list')} style={backLinkStyle}>← Back</button>
-            <label style={{ fontSize: 14 }}>
-              Pipeline name&nbsp;
-              <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} />
-            </label>
-          </div>
-          <PipelineEditor namespace={namespace} name={name} spec={spec} catalogCache={catalogCache} onChange={setSpec} />
-          <DeployBar namespace={namespace} name={name} spec={spec} />
-        </>
-      )}
+              {view === 'editor' && (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+                    <button onClick={() => setView('list')} style={backLinkStyle}>← Back</button>
+                    <label style={{ fontSize: 14 }}>
+                      Pipeline name&nbsp;
+                      <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} />
+                    </label>
+                  </div>
+                  <PipelineEditor namespace={namespace} name={name} spec={spec} catalogCache={catalogCache} onChange={setSpec} />
+                  <DeployBar namespace={namespace} name={name} spec={spec} />
+                </>
+              )}
+            </>
+          )}
+
+          {section === 'clusters' && (
+            <p style={{ color: '#888' }}>Clusters — coming in the next task.</p>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
