@@ -15,6 +15,7 @@ import { DeployBar } from './components/DeployBar'
 import { LoginScreen } from './components/LoginScreen'
 import { Sidebar, type Section } from './components/Sidebar'
 import { ClusterList } from './components/ClusterList'
+import { ClusterDetail } from './components/ClusterDetail'
 import type { CatalogComponent, Pipeline, PipelineSpec } from './types'
 
 const DEFAULT_SPEC: PipelineSpec = {
@@ -149,6 +150,17 @@ export default function App() {
   function handleViewDetail(pipeline: Pipeline) {
     setSelectedPipeline(pipeline)
     setView('detail')
+  }
+
+  async function openPipelineByName(pipelineName: string) {
+    try {
+      const loaded = await getPipeline(namespace, pipelineName)
+      setSelectedPipeline(loaded)
+      setSection('pipelines')
+      setView('detail')
+    } catch (e) {
+      toast.error('Could not open pipeline: ' + (e as Error).message)
+    }
   }
 
   // F44: central entry point for "user wants to authenticate".
@@ -366,7 +378,13 @@ export default function App() {
           )}
 
           {section === 'clusters' && clustersView === 'detail' && (
-            <p style={{ color: '#888' }}>Cluster detail for <strong>{selectedClusterName}</strong> — coming in Task 8.</p>
+            <ClusterDetail
+              namespace={namespace}
+              name={selectedClusterName}
+              readOnly={readOnly}
+              onBack={() => setClustersView('list')}
+              onOpenPipeline={openPipelineByName}
+            />
           )}
         </div>
       </div>
