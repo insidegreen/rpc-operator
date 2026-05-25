@@ -1,4 +1,7 @@
-import type { CatalogComponent, MetricsResponse, Pipeline, PipelineSpec, ValidateResponse } from './types'
+import type {
+  CatalogComponent, ClusterDistribution, MetricQuery, MetricsResponse,
+  Pipeline, PipelineCluster, PipelineClusterSpec, PipelineSpec, ValidateResponse,
+} from './types'
 import { getToken, clearToken } from './auth'
 
 const BASE = '/api/v1'
@@ -171,7 +174,7 @@ export async function runPipeline(namespace: string, name: string): Promise<Pipe
 export async function getMetrics(
   namespace: string,
   name: string,
-  query: 'throughput' | 'error_rate' | 'input_rate' | 'processor_error_rate',
+  query: MetricQuery,
   startSec: number,
   endSec: number,
   step = '30s',
@@ -186,4 +189,62 @@ export async function getMetrics(
     'GET',
     `/namespaces/${namespace}/pipelines/${name}/metrics?${params}`,
   )
+}
+
+// --- F47 Phase 3c: PipelineCluster client ---
+
+export async function listClusters(namespace: string): Promise<PipelineCluster[]> {
+  const data = await request<{ items: PipelineCluster[] }>(
+    'GET', `/namespaces/${namespace}/pipelineclusters`,
+  )
+  return data.items ?? []
+}
+
+export async function getCluster(namespace: string, name: string): Promise<PipelineCluster> {
+  return request<PipelineCluster>('GET', `/namespaces/${namespace}/pipelineclusters/${name}`)
+}
+
+export async function getClusterInstances(
+  namespace: string,
+  name: string,
+): Promise<ClusterDistribution> {
+  return request<ClusterDistribution>(
+    'GET', `/namespaces/${namespace}/pipelineclusters/${name}/instances`,
+  )
+}
+
+export async function getClusterMetrics(
+  namespace: string,
+  name: string,
+  query: MetricQuery,
+  startSec: number,
+  endSec: number,
+  step = '30s',
+): Promise<MetricsResponse> {
+  const params = new URLSearchParams({
+    query,
+    start: String(startSec),
+    end: String(endSec),
+    step,
+  })
+  return request<MetricsResponse>(
+    'GET',
+    `/namespaces/${namespace}/pipelineclusters/${name}/metrics?${params}`,
+  )
+}
+
+// The Phase-3b PUT replaces .spec wholesale, so callers must send the full spec
+// (read it via getCluster first, then mutate the field they want).
+export async function updateCluster(
+  namespace: string,
+  name: string,
+  spec: PipelineClusterSpec,
+  resourceVersion?: string,
+): Promise<PipelineCluster> {
+  return request<PipelineCluster>('PUT', `/namespaces/${namespace}/pipelineclusters/${name}`, {
+    apiVersion: 'rpc.operator.io/v1alpha1',
+    kind: 'PipelineCluster',
+    metadata: { name, namespace, ...(resourceVersion ? { resourceVersion } : {}) },
+    spec,
+  })
 }
