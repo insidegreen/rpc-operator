@@ -1,7 +1,7 @@
-import { Suspense, lazy, useState } from 'react'
-import { createPipeline, updatePipeline } from '../api'
+import { Suspense, lazy, useEffect, useState } from 'react'
+import { createPipeline, listClusters, updatePipeline } from '../api'
 import { SecretRefsEditor } from './SecretRefsEditor'
-import type { Pipeline, SecretRef } from '../types'
+import type { Pipeline, PipelineCluster, SecretRef } from '../types'
 
 const MonacoEditor = lazy(() =>
   import('@monaco-editor/react').then(m => ({ default: m.default })),
@@ -18,10 +18,14 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
   const [name, setName] = useState(editPipeline?.metadata.name ?? '')
   const [text, setText] = useState(editPipeline?.spec.rawYAML ?? '')
   const [secretRefs, setSecretRefs] = useState<SecretRef[]>(editPipeline?.spec.secretRefs ?? [])
+  const [clusterRef, setClusterRef] = useState(editPipeline?.spec.clusterRef ?? '')
+  const [clusters, setClusters] = useState<PipelineCluster[]>([])
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const clusterRef = editPipeline?.spec.clusterRef
+  useEffect(() => {
+    listClusters(namespace).then(setClusters).catch(() => setClusters([]))
+  }, [namespace])
 
   async function handleDeploy() {
     if (!name.trim()) {
@@ -71,6 +75,21 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
         <span style={{ fontSize: 12, color: '#3b82f6', marginLeft: 'auto' }}>RAW YAML Mode</span>
       </div>
 
+      <div style={deploymentRowStyle}>
+        <label style={{ fontSize: 14 }}>
+          Run on&nbsp;
+          <select value={clusterRef} onChange={e => setClusterRef(e.target.value)} style={selectStyle}>
+            <option value="">Own pod (default)</option>
+            {clusters.map(c => (
+              <option key={c.metadata.name} value={c.metadata.name}>{c.metadata.name}</option>
+            ))}
+          </select>
+        </label>
+        {clusters.length === 0 && (
+          <span style={{ fontSize: 12, color: '#9ca3af' }}>no clusters in this namespace</span>
+        )}
+      </div>
+
       <div style={{ border: '1px solid #d1d5db', borderRadius: 4, overflow: 'hidden', marginBottom: 12 }}>
         <Suspense fallback={<div style={{ padding: 16, color: '#888' }}>Loading editor…</div>}>
           <MonacoEditor
@@ -105,6 +124,12 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
   )
 }
 
+const deploymentRowStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12,
+}
+const selectStyle: React.CSSProperties = {
+  padding: '4px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14, marginLeft: 4,
+}
 const inputStyle: React.CSSProperties = {
   padding: '5px 10px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14, marginLeft: 4,
 }
