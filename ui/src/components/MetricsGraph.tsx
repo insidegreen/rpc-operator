@@ -2,13 +2,16 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
-import { getMetrics } from '../api'
+import type { MetricQuery, MetricsResponse } from '../types'
 
 interface Props {
-  namespace: string
-  pipelineName: string
-  podName: string
+  /** Fetches one metric series for [startSec, endSec]. Pipeline detail closes
+   *  over getMetrics(ns, name, …); cluster detail over getClusterMetrics(…). */
+  fetchMetrics: (query: MetricQuery, startSec: number, endSec: number) => Promise<MetricsResponse>
+  /** When false, the chart shows a resting placeholder and does not poll. */
   isRunning: boolean
+  /** Text for the resting placeholder. Defaults to the pipeline wording. */
+  idleLabel?: string
 }
 
 interface ChartPoint {
@@ -19,7 +22,7 @@ interface ChartPoint {
 
 const WINDOW_SEC = 30 * 60 // 30 minutes
 
-export function MetricsGraph({ namespace, pipelineName, isRunning }: Props) {
+export function MetricsGraph({ fetchMetrics, isRunning, idleLabel = 'Pipeline is not running.' }: Props) {
   const [data, setData] = useState<ChartPoint[]>([])
   const [unavailable, setUnavailable] = useState(false)
   const [error, setError] = useState<string | undefined>()
@@ -30,8 +33,8 @@ export function MetricsGraph({ namespace, pipelineName, isRunning }: Props) {
 
     try {
       const [throughput, errors] = await Promise.all([
-        getMetrics(namespace, pipelineName, 'throughput', start, now),
-        getMetrics(namespace, pipelineName, 'error_rate', start, now),
+        fetchMetrics('throughput', start, now),
+        fetchMetrics('error_rate', start, now),
       ])
       setUnavailable(false)
       setError(undefined)
@@ -56,7 +59,7 @@ export function MetricsGraph({ namespace, pipelineName, isRunning }: Props) {
         setError((e as Error).message)
       }
     }
-  }, [namespace, pipelineName])
+  }, [fetchMetrics])
 
   useEffect(() => {
     if (!isRunning) return
@@ -88,7 +91,7 @@ export function MetricsGraph({ namespace, pipelineName, isRunning }: Props) {
     return (
       <div style={sectionStyle}>
         <h3 style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 600 }}>Metrics</h3>
-        <p style={{ color: '#888', fontSize: 13, margin: 0 }}>Pipeline is not running.</p>
+        <p style={{ color: '#888', fontSize: 13, margin: 0 }}>{idleLabel}</p>
       </div>
     )
   }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Pipeline } from '../types'
 import { getToken } from '../auth'
+import { getMetrics } from '../api'
 import { MetricsGraph } from './MetricsGraph'
 
 interface Props {
@@ -118,9 +119,7 @@ export function PipelineDetail({
 
       {/* Metrics */}
       <MetricsGraph
-        namespace={p.metadata.namespace}
-        pipelineName={p.metadata.name}
-        podName={p.status?.podName ?? ''}
+        fetchMetrics={(q, start, end) => getMetrics(p.metadata.namespace, p.metadata.name, q, start, end)}
         isRunning={p.status?.phase === 'Running'}
       />
 
