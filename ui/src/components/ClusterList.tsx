@@ -17,7 +17,16 @@ export function ClusterList({ namespace, onViewDetail }: Props) {
     function load() {
       listClusters(namespace)
         .then(items => { if (!cancelled) { setClusters(items); setError(undefined) } })
-        .catch(e => { if (!cancelled) setError((e as Error).message) })
+        .catch(e => {
+          if (!cancelled) {
+            if ((e as { status?: number }).status === 403) {
+              setClusters([])
+              setError(undefined)
+            } else {
+              setError((e as Error).message)
+            }
+          }
+        })
         .finally(() => { if (!cancelled) setLoading(false) })
     }
     load()

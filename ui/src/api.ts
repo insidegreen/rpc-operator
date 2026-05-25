@@ -32,7 +32,8 @@ export async function request<T>(
   }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: resp.statusText }))
-    throw Object.assign(new Error(err.error ?? resp.statusText), { status: resp.status, body: err })
+    const msg = err.details ? `${err.error ?? resp.statusText}: ${err.details}` : (err.error ?? resp.statusText)
+    throw Object.assign(new Error(msg), { status: resp.status, body: err })
   }
   if (resp.status === 204) return undefined as T
   return resp.json()
