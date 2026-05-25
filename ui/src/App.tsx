@@ -14,6 +14,7 @@ import { RawPipelineEditor } from './components/RawPipelineEditor'
 import { DeployBar } from './components/DeployBar'
 import { LoginScreen } from './components/LoginScreen'
 import { Sidebar, type Section } from './components/Sidebar'
+import { ClusterList } from './components/ClusterList'
 import type { CatalogComponent, Pipeline, PipelineSpec } from './types'
 
 const DEFAULT_SPEC: PipelineSpec = {
@@ -27,6 +28,8 @@ type View = 'list' | 'editor' | 'raw-editor' | 'detail'
 export default function App() {
   const [view, setView] = useState<View>('list')
   const [section, setSection] = useState<Section>('pipelines')
+  const [clustersView, setClustersView] = useState<'list' | 'detail'>('list')
+  const [selectedClusterName, setSelectedClusterName] = useState<string>('')
   const [namespace, setNamespace] = useState('rpc-operator-poc')
   const [name, setName] = useState('my-pipeline')
   const [spec, setSpec] = useState<PipelineSpec>(DEFAULT_SPEC)
@@ -355,8 +358,15 @@ export default function App() {
             </>
           )}
 
-          {section === 'clusters' && (
-            <p style={{ color: '#888' }}>Clusters — coming in the next task.</p>
+          {section === 'clusters' && clustersView === 'list' && (
+            <ClusterList
+              namespace={namespace}
+              onViewDetail={name => { setSelectedClusterName(name); setClustersView('detail') }}
+            />
+          )}
+
+          {section === 'clusters' && clustersView === 'detail' && (
+            <p style={{ color: '#888' }}>Cluster detail for <strong>{selectedClusterName}</strong> — coming in Task 8.</p>
           )}
         </div>
       </div>
