@@ -32,6 +32,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
@@ -43,6 +44,9 @@ const (
 	finalizerName      = "rpc.operator.io/finalizer"
 	specHashAnnotation = "rpc.operator.io/spec-hash"
 )
+
+// secretNameIndex is the IndexField key for efficient Secret → Pipeline lookup.
+const secretNameIndex = "spec.secretRefs.secretName"
 
 // PipelineReconciler reconciles a Pipeline object.
 type PipelineReconciler struct {
@@ -60,6 +64,7 @@ type PipelineReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=core,resources=pods/log,verbs=get
 // +kubebuilder:rbac:groups=monitoring.coreos.com,resources=podmonitors,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch
 
 // Reconcile drives the Pipeline CR towards its desired state: a ConfigMap
 // holding the rendered Redpanda Connect config, and a Pod running the connect
@@ -391,13 +396,48 @@ func secretRefsToEnvVars(refs []rpcv1alpha1.SecretRef) []corev1.EnvVar {
 	return vars
 }
 
+// pipelinesForSecret maps a changed Secret to the Pipelines that reference it by name.
+// Used by Watches(&corev1.Secret{}) to enqueue affected pipelines for re-reconcile.
+func (r *PipelineReconciler) pipelinesForSecret(ctx context.Context, obj client.Object) []ctrl.Request {
+	var pipes rpcv1alpha1.PipelineList
+	if err := r.List(ctx, &pipes,
+		client.MatchingFields{secretNameIndex: obj.GetName()},
+		client.InNamespace(obj.GetNamespace()),
+	); err != nil {
+		return nil
+	}
+	reqs := make([]ctrl.Request, 0, len(pipes.Items))
+	for _, p := range pipes.Items {
+		reqs = append(reqs, ctrl.Request{
+			NamespacedName: client.ObjectKey{Name: p.Name, Namespace: p.Namespace},
+		})
+	}
+	return reqs
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *PipelineReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &rpcv1alpha1.Pipeline{}, secretNameIndex,
+		func(obj client.Object) []string {
+			pipe := obj.(*rpcv1alpha1.Pipeline)
+			var names []string
+			for _, ref := range pipe.Spec.SecretRefs {
+				names = append(names, ref.SecretName)
+			}
+			return names
+		},
+	); err != nil {
+		return err
+	}
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&rpcv1alpha1.Pipeline{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Pod{}).
 		Owns(&monitoringv1.PodMonitor{}).
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.pipelinesForSecret),
+		).
 		Named("pipeline").
 		Complete(r)
 }
