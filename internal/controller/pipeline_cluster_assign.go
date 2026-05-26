@@ -102,11 +102,6 @@ func (r *PipelineReconciler) loadByOrdinal(ctx context.Context, clusterName, nam
 // handleClusterAssigned deploys a clusterRef pipeline as a stream into its cluster.
 // Phase 2a: validation + teardown of pod-mode leftovers + schedule + deploy + placement.
 func (r *PipelineReconciler) handleClusterAssigned(ctx context.Context, pipe *rpcv1alpha1.Pipeline) (ctrl.Result, error) {
-	if len(pipe.Spec.SecretRefs) > 0 {
-		return r.markClusterFailed(ctx, pipe, "SecretsUnsupportedInCluster",
-			"pipelines with secretRefs cannot join a cluster; keep them in single-pod mode")
-	}
-
 	var cluster rpcv1alpha1.PipelineCluster
 	if err := r.Get(ctx, client.ObjectKey{Name: pipe.Spec.ClusterRef, Namespace: pipe.Namespace}, &cluster); err != nil {
 		if apierrors.IsNotFound(err) {
@@ -145,6 +140,13 @@ func (r *PipelineReconciler) handleClusterAssigned(ctx context.Context, pipe *rp
 	body, err := render.RenderStreamConfig(&pipe.Spec)
 	if err != nil {
 		return r.markClusterFailed(ctx, pipe, "RenderError", err.Error())
+	}
+	if len(pipe.Spec.SecretRefs) > 0 {
+		values, err := fetchSecretValues(ctx, r.Client, pipe.Namespace, pipe.Spec.SecretRefs)
+		if err != nil {
+			return r.markClusterFailed(ctx, pipe, "SecretNotFound", err.Error())
+		}
+		body = substituteSecrets(body, pipe.Spec.SecretRefs, values)
 	}
 	podURL := clusterPodURL(cluster.Name, pipe.Namespace, ordinal)
 	if err := r.Streams.EnsureStream(ctx, podURL, pipe.Name, body); err != nil {

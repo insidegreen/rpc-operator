@@ -94,30 +94,108 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(k8sClient.Get(ctx, nn, pod)).To(HaveOccurred())
 	})
 
-	It("rejects a pipeline with SecretRefs", func() {
+	It("deploys a cluster pipeline with SecretRefs, substituting the secret value", func() {
 		cluster := &rpcv1alpha1.PipelineCluster{
-			ObjectMeta: metav1.ObjectMeta{Name: "c2", Namespace: namespace},
+			ObjectMeta: metav1.ObjectMeta{Name: "cs1", Namespace: namespace},
 			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
 		}
 		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
-		makeReadyClusterPod(ctx, "c2", namespace, 0)
+		makeReadyClusterPod(ctx, "cs1", namespace, 0)
+
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "db-creds", Namespace: namespace},
+			Data:       map[string][]byte{"password": []byte("topsecret")},
+		}
+		Expect(k8sClient.Create(ctx, secret)).To(Succeed())
 
 		pipe := &rpcv1alpha1.Pipeline{
-			ObjectMeta: metav1.ObjectMeta{Name: "p2", Namespace: namespace},
+			ObjectMeta: metav1.ObjectMeta{Name: "ps1", Namespace: namespace},
 			Spec: rpcv1alpha1.PipelineSpec{
-				ClusterRef: "c2",
-				SecretRefs: []rpcv1alpha1.SecretRef{{EnvVar: "X", SecretName: "s", Key: "k"}},
+				ClusterRef: "cs1",
+				SecretRefs: []rpcv1alpha1.SecretRef{{EnvVar: "DB_PASS", SecretName: "db-creds", Key: "password"}},
+				RawYAML: "input:\n  generate:\n    mapping: 'root.pass = \"${DB_PASS}\"'\noutput:\n  drop: {}\n",
+			},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := assign("ps1")
+		got := &rpcv1alpha1.Pipeline{}
+		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
+		Expect(got.Status.Phase).To(Equal(rpcv1alpha1.PhaseRunning))
+
+		url := "http://cs1-0.cs1." + namespace + ".svc:4195"
+		Expect(fake.Has(url, "ps1")).To(BeTrue())
+		body := fake.StreamBody(url, "ps1")
+		Expect(body).To(ContainSubstring("${DB_PASS:topsecret}"))
+		Expect(body).NotTo(ContainSubstring("topsecret\n")) // value only inside ${...}, never raw
+	})
+
+	It("re-deploys with the new secret value on the next reconcile (rotation support)", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "cs2", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "cs2", namespace, 0)
+
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{Name: "rot-creds", Namespace: namespace},
+			Data:       map[string][]byte{"password": []byte("v1")},
+		}
+		Expect(k8sClient.Create(ctx, secret)).To(Succeed())
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "ps2", Namespace: namespace},
+			Spec: rpcv1alpha1.PipelineSpec{
+				ClusterRef: "cs2",
+				SecretRefs: []rpcv1alpha1.SecretRef{{EnvVar: "DB_PASS", SecretName: "rot-creds", Key: "password"}},
+				RawYAML: "input:\n  generate:\n    mapping: 'root.pass = \"${DB_PASS}\"'\noutput:\n  drop: {}\n",
+			},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := assign("ps2")
+		url := "http://cs2-0.cs2." + namespace + ".svc:4195"
+		Expect(fake.StreamBody(url, "ps2")).To(ContainSubstring("${DB_PASS:v1}"))
+
+		// Simulate secret rotation
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "rot-creds", Namespace: namespace}, secret)).To(Succeed())
+		secret.Data["password"] = []byte("v2")
+		Expect(k8sClient.Update(ctx, secret)).To(Succeed())
+
+		// Next reconcile re-substitutes with the new value
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(fake.StreamBody(url, "ps2")).To(ContainSubstring("${DB_PASS:v2}"))
+	})
+
+	It("marks Failed with SecretNotFound when referenced secret does not exist", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "cs3", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "cs3", namespace, 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "ps3", Namespace: namespace},
+			Spec: rpcv1alpha1.PipelineSpec{
+				ClusterRef: "cs3",
+				SecretRefs: []rpcv1alpha1.SecretRef{{EnvVar: "X", SecretName: "no-such-secret", Key: "k"}},
 				Input:      rpcv1alpha1.ComponentSpec{Type: "generate"},
 				Output:     rpcv1alpha1.ComponentSpec{Type: "drop"},
 			},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
-		nn := assign("p2")
+		nn := assign("ps3")
 		got := &rpcv1alpha1.Pipeline{}
 		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
 		Expect(got.Status.Phase).To(Equal(rpcv1alpha1.PhaseFailed))
-		Expect(fake.Has("http://c2-0.c2."+namespace+".svc:4195", "p2")).To(BeFalse())
+		cond := apimeta.FindStatusCondition(got.Status.Conditions, "Ready")
+		Expect(cond).NotTo(BeNil())
+		Expect(cond.Reason).To(Equal("SecretNotFound"))
+		Expect(fake.Has("http://cs3-0.cs3."+namespace+".svc:4195", "ps3")).To(BeFalse())
 	})
 
 	It("marks Pending when the cluster has no ready instances", func() {
@@ -417,6 +495,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			_ = k8sClient.Delete(ctx, p)
 		}
 		_ = k8sClient.DeleteAllOf(ctx, &corev1.Pod{}, client.InNamespace(namespace))
+		_ = k8sClient.DeleteAllOf(ctx, &corev1.Secret{}, client.InNamespace(namespace))
 		clusters := &rpcv1alpha1.PipelineClusterList{}
 		Expect(k8sClient.List(ctx, clusters, client.InNamespace(namespace))).To(Succeed())
 		for i := range clusters.Items {
