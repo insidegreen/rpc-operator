@@ -14,6 +14,10 @@ rules:
   - apiGroups: [""]
     resources: [pods/log]
     verbs: [get]
+  # F48: operator reads Secrets to substitute values into cluster-assigned pipeline streams.
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, list, watch]
   # F47: PipelineCluster controller manages a StatefulSet of streams-mode instances.
   - apiGroups: [apps]
     resources: [statefulsets]
