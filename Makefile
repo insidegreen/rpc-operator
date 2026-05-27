@@ -63,6 +63,14 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet setup-envtest ## Run tests.
 	KUBEBUILDER_ASSETS="$(shell "$(ENVTEST)" use $(ENVTEST_K8S_VERSION) --bin-dir "$(LOCALBIN)" -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
+.PHONY: test-ci
+test-ci: ## Run tests in CI (assumes Go, controller-gen, KUBEBUILDER_ASSETS already in environment).
+	controller-gen rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	controller-gen object:headerFile="hack/boilerplate.go.txt",year=$(YEAR) paths="./..."
+	go fmt ./...
+	go vet ./...
+	go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
+
 # TODO(user): To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
 # The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
 # kubectl kuberc is disabled by default for test isolation; enable with:
