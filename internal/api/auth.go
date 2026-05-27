@@ -161,7 +161,8 @@ func (s *Server) clientsetForRequest(r *http.Request) (*kubernetes.Clientset, er
 // the UI fetches this endpoint to learn OIDC availability before authenticating.
 func (s *Server) handleAuthConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"oidcEnabled": s.OIDC != nil,
+		"oidcEnabled":         s.OIDC != nil,
+		"visualEditorEnabled": s.VisualEditorEnabled,
 	})
 }
 

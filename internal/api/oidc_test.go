@@ -768,6 +768,9 @@ func TestOIDC_AuthConfig_ReachableWithoutTokenInModeBStrict(t *testing.T) {
 	if enabled, _ := body["oidcEnabled"].(bool); !enabled {
 		t.Errorf("config.oidcEnabled = false, want true (OIDC configured)")
 	}
+	if enabled, ok := body["visualEditorEnabled"].(bool); !ok || enabled {
+		t.Errorf("config.visualEditorEnabled = %v, want false (not set in test server)", body["visualEditorEnabled"])
+	}
 }
 
 func TestOIDC_AuthConfig_ReportsDisabledWhenNoConfig(t *testing.T) {
@@ -784,6 +787,38 @@ func TestOIDC_AuthConfig_ReportsDisabledWhenNoConfig(t *testing.T) {
 	body := readBodyJSON(t, resp)
 	if enabled, ok := body["oidcEnabled"].(bool); !ok || enabled {
 		t.Errorf("config.oidcEnabled = %v, want false (no OIDC config)", body["oidcEnabled"])
+	}
+	if enabled, ok := body["visualEditorEnabled"].(bool); !ok || enabled {
+		t.Errorf("config.visualEditorEnabled = %v, want false (not set)", body["visualEditorEnabled"])
+	}
+}
+
+func TestAuthConfig_VisualEditorEnabled(t *testing.T) {
+	cat, err := catalog.Load()
+	if err != nil {
+		t.Fatalf("catalog.Load: %v", err)
+	}
+	srv := &api.Server{
+		Addr:                ":0",
+		Client:              newFakeClient(t),
+		Catalog:             cat,
+		VisualEditorEnabled: true,
+	}
+	mux := http.NewServeMux()
+	srv.RegisterRoutesForTest(mux)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/auth/config")
+	if err != nil {
+		t.Fatalf("GET /auth/config: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	body := readBodyJSON(t, resp)
+	if enabled, _ := body["visualEditorEnabled"].(bool); !enabled {
+		t.Errorf("config.visualEditorEnabled = false, want true (VisualEditorEnabled set)")
 	}
 }
 

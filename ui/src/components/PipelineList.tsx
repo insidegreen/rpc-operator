@@ -107,21 +107,25 @@ export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail
         <h2 style={{ margin: 0, fontSize: 18 }}>Pipelines — {namespace}</h2>
         {!readOnly && onNew && (
           <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-flex' }}>
-            <button onClick={onNew} style={newBtnStyle}>+ New Pipeline</button>
-            <button
-              onClick={() => setDropdownOpen(o => !o)}
-              style={{ ...newBtnStyle, padding: '6px 8px', borderLeft: '1px solid rgba(255,255,255,0.4)', borderRadius: '0 4px 4px 0' }}
-              aria-label="More options"
-            ><ChevronDown size={14} /></button>
-            {dropdownOpen && onNewRaw && (
-              <div style={dropdownMenuStyle}>
+            <button onClick={onNew} style={onNewRaw ? newBtnStyle : { ...newBtnStyle, borderRadius: 4 }}>+ New Pipeline</button>
+            {onNewRaw && (
+              <>
                 <button
-                  onClick={() => { setDropdownOpen(false); onNewRaw() }}
-                  style={dropdownItemStyle}
-                >
-                  New RAW Pipeline
-                </button>
-              </div>
+                  onClick={() => setDropdownOpen(o => !o)}
+                  style={{ ...newBtnStyle, padding: '6px 8px', borderLeft: '1px solid rgba(255,255,255,0.4)', borderRadius: '0 4px 4px 0' }}
+                  aria-label="More options"
+                ><ChevronDown size={14} /></button>
+                {dropdownOpen && (
+                  <div style={dropdownMenuStyle}>
+                    <button
+                      onClick={() => { setDropdownOpen(false); onNewRaw() }}
+                      style={dropdownItemStyle}
+                    >
+                      New RAW Pipeline
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

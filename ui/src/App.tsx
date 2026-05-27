@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Toaster, toast } from 'sonner'
 import {
   listCatalog, getPipeline, listNamespaces, whoami, authConfig,
-  stopPipeline, runPipeline, refreshOIDC, oidcLogout,
+  stopPipeline, runPipeline, refreshOIDC, oidcLogout, renderPipelineYAML,
   type WhoamiResponse,
 } from './api'
 import { clearToken, setToken } from './auth'
@@ -48,6 +48,7 @@ export default function App() {
   // once-registered onExpire listener reads the live value, not a stale closure.
   const [oidcEnabled, setOidcEnabled] = useState(false)
   const oidcEnabledRef = useRef(false)
+  const [visualEditorEnabled, setVisualEditorEnabled] = useState(false)
 
   useEffect(() => {
     // F20b: when the OIDC callback redirected us back with #id_token=... in the
@@ -63,7 +64,11 @@ export default function App() {
     // F20b: token-free probe so the SSO button can render before login (whoami
     // 401s in Mode B strict). Mirror into the ref for the onExpire closure.
     authConfig()
-      .then(c => { setOidcEnabled(c.oidcEnabled); oidcEnabledRef.current = c.oidcEnabled })
+      .then(c => {
+        setOidcEnabled(c.oidcEnabled)
+        oidcEnabledRef.current = c.oidcEnabled
+        setVisualEditorEnabled(c.visualEditorEnabled)
+      })
       .catch(() => { /* probe failure → no SSO button, token-paste still works */ })
 
     whoami()
@@ -127,6 +132,14 @@ export default function App() {
       if (loaded.spec.rawYAML) {
         setEditPipeline(loaded)
         setView('raw-editor')
+      } else if (!visualEditorEnabled) {
+        try {
+          const yaml = await renderPipelineYAML(loaded.metadata.namespace, loaded.metadata.name, loaded.spec)
+          setEditPipeline({ ...loaded, spec: { ...loaded.spec, rawYAML: yaml } })
+          setView('raw-editor')
+        } catch (e) {
+          toast.error('Render failed: ' + (e as Error).message)
+        }
       } else {
         setName(loaded.metadata.name)
         setSpec(loaded.spec)
@@ -138,6 +151,14 @@ export default function App() {
       if (pipeline.spec.rawYAML) {
         setEditPipeline(pipeline)
         setView('raw-editor')
+      } else if (!visualEditorEnabled) {
+        try {
+          const yaml = await renderPipelineYAML(pipeline.metadata.namespace, pipeline.metadata.name, pipeline.spec)
+          setEditPipeline({ ...pipeline, spec: { ...pipeline.spec, rawYAML: yaml } })
+          setView('raw-editor')
+        } catch (e) {
+          toast.error('Render failed: ' + (e as Error).message)
+        }
       } else {
         setName(pipeline.metadata.name)
         setSpec(pipeline.spec)
@@ -221,6 +242,7 @@ export default function App() {
 
   function handleNew() {
     if (readOnly) return
+    if (!visualEditorEnabled) { handleNewRaw(); return }
     setName('my-pipeline')
     setSpec(DEFAULT_SPEC)
     setEditPipeline(undefined)
@@ -335,7 +357,7 @@ export default function App() {
                   onEdit={readOnly ? undefined : handleEdit}
                   onViewDetail={handleViewDetail}
                   onNew={readOnly ? undefined : handleNew}
-                  onNewRaw={readOnly ? undefined : handleNewRaw}
+                  onNewRaw={readOnly ? undefined : (visualEditorEnabled ? handleNewRaw : undefined)}
                 />
               )}
 

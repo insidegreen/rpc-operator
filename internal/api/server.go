@@ -39,7 +39,8 @@ type Server struct {
 	AnonymousLogs   bool            // F42: when true (and AuthEnabled), WS /logs passes without a token; separate from AnonymousRead because log content can leak payloads
 	Scheme          *runtime.Scheme // F20a: scheme for per-request controller-runtime clients
 	RestConfig      *rest.Config    // F20a: base config (host + CA) for per-request clients; never mutated directly
-	OIDC            *OIDCConfig     // F20b: when nil, OIDC routes are not registered and Whoami reports oidcEnabled=false
+	OIDC                *OIDCConfig     // F20b: when nil, OIDC routes are not registered and Whoami reports oidcEnabled=false
+	VisualEditorEnabled bool            // F49: when false (default), UI routes all editors to RawPipelineEditor
 	oidcRT          oidcRuntime     // F20b: lazy-initialized provider + verifier + oauth2 config
 	oidcStore       *sessionStore   // F20b: in-memory session store; nil when OIDC is disabled
 	srv             *http.Server
@@ -54,7 +55,7 @@ var _ manager.Runnable = (*Server)(nil)
 func New(
 	addr string, c client.Client, restCfg *rest.Config, scheme *runtime.Scheme,
 	prometheusURL string, watchNamespaces []string,
-	authEnabled, anonymousRead, anonymousLogs bool,
+	authEnabled, anonymousRead, anonymousLogs, visualEditorEnabled bool,
 	oidcCfg *OIDCConfig,
 ) (*Server, error) {
 	cat, err := catalog.Default()
@@ -72,12 +73,13 @@ func New(
 		Catalog:         cat,
 		PrometheusURL:   prometheusURL,
 		WatchNamespaces: watchNamespaces,
-		AuthEnabled:     authEnabled,
-		AnonymousRead:   anonymousRead,
-		AnonymousLogs:   anonymousLogs,
-		Scheme:          scheme,
-		RestConfig:      restCfg,
-		OIDC:            oidcCfg,
+		AuthEnabled:         authEnabled,
+		AnonymousRead:       anonymousRead,
+		AnonymousLogs:       anonymousLogs,
+		VisualEditorEnabled: visualEditorEnabled,
+		Scheme:              scheme,
+		RestConfig:          restCfg,
+		OIDC:                oidcCfg,
 	}
 	if oidcCfg != nil {
 		s.oidcStore = newSessionStore(oidcSessionTTL)

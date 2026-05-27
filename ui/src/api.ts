@@ -56,8 +56,8 @@ export async function whoami(): Promise<WhoamiResponse> {
 
 // F20b: token-free capabilities probe. Lets the login screen show the SSO
 // button in Mode B strict, where whoami 401s before the user has a token.
-export async function authConfig(): Promise<{ oidcEnabled: boolean }> {
-  return request<{ oidcEnabled: boolean }>('GET', '/auth/config')
+export async function authConfig(): Promise<{ oidcEnabled: boolean; visualEditorEnabled: boolean }> {
+  return request<{ oidcEnabled: boolean; visualEditorEnabled: boolean }>('GET', '/auth/config')
 }
 
 // F20b: exchanges the backend-cached refresh_token for a fresh id_token.
