@@ -29,8 +29,14 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+          cache: true
+
+      - name: Cache build tools (controller-gen, setup-envtest, envtest binaries)
+        uses: actions/cache@v4
+        with:
+          path: bin
+          key: tools-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Makefile') }}
+          restore-keys: tools-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Run tests
-        run: |
-          go mod tidy
-          make test
+        run: make test
