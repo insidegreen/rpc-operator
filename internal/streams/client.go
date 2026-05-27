@@ -79,7 +79,7 @@ func (c *HTTPClient) streamReq(ctx context.Context, method, podBaseURL, streamID
 	if err != nil {
 		return 0, "", fmt.Errorf("%s stream %s: %w", method, streamID, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	return resp.StatusCode, string(body), nil
 }
@@ -94,7 +94,7 @@ func (c *HTTPClient) DeleteStream(ctx context.Context, podBaseURL, streamID stri
 	if err != nil {
 		return fmt.Errorf("DELETE stream %s: %w", streamID, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusNotFound {
 		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil
@@ -117,7 +117,7 @@ func (c *HTTPClient) ListStreams(ctx context.Context, podBaseURL string) (map[st
 	if err != nil {
 		return nil, fmt.Errorf("GET streams: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("GET streams: status %d: %s", resp.StatusCode, string(body))

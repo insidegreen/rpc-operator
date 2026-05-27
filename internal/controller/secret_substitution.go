@@ -28,10 +28,7 @@ func substituteSecrets(yamlText string, refs []rpcv1alpha1.SecretRef, values map
 	return varPattern.ReplaceAllStringFunc(yamlText, func(match string) string {
 		// match is "${VARNAME}" or "${VARNAME:old}"; strip ${ and }
 		inner := match[2 : len(match)-1]
-		name := inner
-		if idx := strings.IndexByte(inner, ':'); idx >= 0 {
-			name = inner[:idx]
-		}
+		name, _, _ := strings.Cut(inner, ":")
 		val, ok := values[name]
 		if !ok {
 			return match

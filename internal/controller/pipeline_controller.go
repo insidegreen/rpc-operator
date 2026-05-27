@@ -420,7 +420,7 @@ func (r *PipelineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &rpcv1alpha1.Pipeline{}, secretNameIndex,
 		func(obj client.Object) []string {
 			pipe := obj.(*rpcv1alpha1.Pipeline)
-			var names []string
+			names := make([]string, 0, len(pipe.Spec.SecretRefs))
 			for _, ref := range pipe.Spec.SecretRefs {
 				names = append(names, ref.SecretName)
 			}

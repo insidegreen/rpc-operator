@@ -17,6 +17,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+const testClusterName = "etl-small"
+
 func TestClusterConfigYAML_JSONLogging(t *testing.T) {
 	cfg := clusterConfigYAML(true)
 	if !strings.Contains(cfg, "format: json") {
@@ -41,14 +43,14 @@ func TestClusterConfigYAML_PlainLogging(t *testing.T) {
 }
 
 func TestBuildClusterService_Headless(t *testing.T) {
-	svc := buildClusterService("etl-small", "etl-small")
-	if svc.Name != "etl-small" {
+	svc := buildClusterService(testClusterName, testClusterName)
+	if svc.Name != testClusterName {
 		t.Errorf("expected service name etl-small, got %q", svc.Name)
 	}
 	if svc.Spec.ClusterIP != "None" {
 		t.Errorf("expected headless service (ClusterIP None), got %q", svc.Spec.ClusterIP)
 	}
-	if svc.Spec.Selector[clusterLabelKey] != "etl-small" {
+	if svc.Spec.Selector[clusterLabelKey] != testClusterName {
 		t.Errorf("expected selector %s=etl-small, got %v", clusterLabelKey, svc.Spec.Selector)
 	}
 	if len(svc.Spec.Ports) != 1 || svc.Spec.Ports[0].Port != httpPort {
@@ -57,21 +59,21 @@ func TestBuildClusterService_Headless(t *testing.T) {
 }
 
 func TestBuildClusterStatefulSet(t *testing.T) {
-	ss := buildClusterStatefulSet("etl-small", "", 3, corev1.ResourceRequirements{}, "etl-small-config", "etl-small")
+	ss := buildClusterStatefulSet(testClusterName, "", 3, corev1.ResourceRequirements{}, "etl-small-config", testClusterName)
 
-	if ss.Name != "etl-small" {
+	if ss.Name != testClusterName {
 		t.Errorf("expected name etl-small, got %q", ss.Name)
 	}
 	if ss.Spec.Replicas == nil || *ss.Spec.Replicas != 3 {
 		t.Errorf("expected 3 replicas, got %v", ss.Spec.Replicas)
 	}
-	if ss.Spec.ServiceName != "etl-small" {
+	if ss.Spec.ServiceName != testClusterName {
 		t.Errorf("expected serviceName etl-small, got %q", ss.Spec.ServiceName)
 	}
-	if ss.Spec.Selector.MatchLabels[clusterLabelKey] != "etl-small" {
+	if ss.Spec.Selector.MatchLabels[clusterLabelKey] != testClusterName {
 		t.Errorf("expected selector %s=etl-small, got %v", clusterLabelKey, ss.Spec.Selector.MatchLabels)
 	}
-	if ss.Spec.Template.Labels[clusterLabelKey] != "etl-small" {
+	if ss.Spec.Template.Labels[clusterLabelKey] != testClusterName {
 		t.Errorf("expected pod label %s=etl-small, got %v", clusterLabelKey, ss.Spec.Template.Labels)
 	}
 

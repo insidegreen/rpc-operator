@@ -11,7 +11,7 @@ You may obtain a copy of the License at
 package controller
 
 import (
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -36,10 +36,8 @@ func ordinalFromPodName(podName, clusterName string) (int32, bool) {
 // pipeline's status.assignedInstance (empty when unplaced).
 func pickInstance(currentInstance, clusterName string, readyOrdinals []int32, loadByOrdinal map[int32]int) (int32, bool) {
 	if cur, ok := ordinalFromPodName(currentInstance, clusterName); ok {
-		for _, o := range readyOrdinals {
-			if o == cur {
-				return cur, true
-			}
+		if slices.Contains(readyOrdinals, cur) {
+			return cur, true
 		}
 	}
 	return leastLoadedInstance(readyOrdinals, loadByOrdinal)
@@ -52,7 +50,7 @@ func leastLoadedInstance(readyOrdinals []int32, loadByOrdinal map[int32]int) (in
 		return 0, false
 	}
 	sorted := append([]int32(nil), readyOrdinals...)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i] < sorted[j] })
+	slices.Sort(sorted)
 	best := sorted[0]
 	bestLoad := loadByOrdinal[best]
 	for _, o := range sorted[1:] {

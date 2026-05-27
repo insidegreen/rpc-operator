@@ -103,7 +103,7 @@ func aggregateDistribution(cluster *rpcv1alpha1.PipelineCluster, pods []corev1.P
 	}
 
 	instances := make([]ClusterInstance, 0, replicas)
-	for ord := int32(0); ord < replicas; ord++ {
+	for ord := range replicas {
 		names := assignedByOrdinal[ord]
 		if names == nil {
 			names = []string{}

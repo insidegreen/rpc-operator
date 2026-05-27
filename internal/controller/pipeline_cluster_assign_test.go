@@ -28,12 +28,12 @@ import (
 	"github.com/insidegreen/rpc-operator-claude/internal/streams"
 )
 
-func makeReadyClusterPod(ctx context.Context, cluster, namespace string, ordinal int) {
+func makeReadyClusterPod(ctx context.Context, cluster string, ordinal int) {
 	name := fmt.Sprintf("%s-%d", cluster, ordinal)
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: namespace,
+			Namespace: "default",
 			Labels:    map[string]string{clusterLabelKey: cluster},
 		},
 		Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "connect", Image: "x"}}},
@@ -72,7 +72,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
 		}
 		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
-		makeReadyClusterPod(ctx, "c1", namespace, 0)
+		makeReadyClusterPod(ctx, "c1", 0)
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p1", Namespace: namespace},
@@ -100,7 +100,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
 		}
 		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
-		makeReadyClusterPod(ctx, "cs1", namespace, 0)
+		makeReadyClusterPod(ctx, "cs1", 0)
 
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "db-creds", Namespace: namespace},
@@ -113,7 +113,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			Spec: rpcv1alpha1.PipelineSpec{
 				ClusterRef: "cs1",
 				SecretRefs: []rpcv1alpha1.SecretRef{{EnvVar: "DB_PASS", SecretName: "db-creds", Key: "password"}},
-				RawYAML: "input:\n  generate:\n    mapping: 'root.pass = \"${DB_PASS}\"'\noutput:\n  drop: {}\n",
+				RawYAML:    "input:\n  generate:\n    mapping: 'root.pass = \"${DB_PASS}\"'\noutput:\n  drop: {}\n",
 			},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
@@ -136,7 +136,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
 		}
 		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
-		makeReadyClusterPod(ctx, "cs2", namespace, 0)
+		makeReadyClusterPod(ctx, "cs2", 0)
 
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{Name: "rot-creds", Namespace: namespace},
@@ -149,7 +149,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			Spec: rpcv1alpha1.PipelineSpec{
 				ClusterRef: "cs2",
 				SecretRefs: []rpcv1alpha1.SecretRef{{EnvVar: "DB_PASS", SecretName: "rot-creds", Key: "password"}},
-				RawYAML: "input:\n  generate:\n    mapping: 'root.pass = \"${DB_PASS}\"'\noutput:\n  drop: {}\n",
+				RawYAML:    "input:\n  generate:\n    mapping: 'root.pass = \"${DB_PASS}\"'\noutput:\n  drop: {}\n",
 			},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
@@ -175,7 +175,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
 		}
 		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
-		makeReadyClusterPod(ctx, "cs3", namespace, 0)
+		makeReadyClusterPod(ctx, "cs3", 0)
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "ps3", Namespace: namespace},
@@ -236,8 +236,8 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 2},
 		}
 		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
-		makeReadyClusterPod(ctx, "c5", namespace, 0)
-		makeReadyClusterPod(ctx, "c5", namespace, 1)
+		makeReadyClusterPod(ctx, "c5", 0)
+		makeReadyClusterPod(ctx, "c5", 1)
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p5", Namespace: namespace},
@@ -252,7 +252,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(firstInstance).NotTo(BeEmpty())
 
 		// reconcile several more times; placement must not move
-		for i := 0; i < 3; i++ {
+		for range 3 {
 			_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 			Expect(err).NotTo(HaveOccurred())
 		}
@@ -273,8 +273,8 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 2},
 		}
 		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
-		makeReadyClusterPod(ctx, "c6", namespace, 0)
-		makeReadyClusterPod(ctx, "c6", namespace, 1)
+		makeReadyClusterPod(ctx, "c6", 0)
+		makeReadyClusterPod(ctx, "c6", 1)
 
 		for _, n := range []string{"p6", "p7"} {
 			p := &rpcv1alpha1.Pipeline{
@@ -297,7 +297,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
 		}
 		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
-		makeReadyClusterPod(ctx, "c10", namespace, 0)
+		makeReadyClusterPod(ctx, "c10", 0)
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p10", Namespace: namespace},
@@ -319,7 +319,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
 		}
 		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
-		makeReadyClusterPod(ctx, "c11", namespace, 0)
+		makeReadyClusterPod(ctx, "c11", 0)
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p11", Namespace: namespace},
@@ -345,8 +345,8 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 2},
 		}
 		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
-		makeReadyClusterPod(ctx, "c12", namespace, 0)
-		makeReadyClusterPod(ctx, "c12", namespace, 1)
+		makeReadyClusterPod(ctx, "c12", 0)
+		makeReadyClusterPod(ctx, "c12", 1)
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p12", Namespace: namespace},
@@ -381,7 +381,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 				Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
 			}
 			Expect(k8sClient.Create(ctx, cl)).To(Succeed())
-			makeReadyClusterPod(ctx, c, namespace, 0)
+			makeReadyClusterPod(ctx, c, 0)
 		}
 
 		pipe := &rpcv1alpha1.Pipeline{
@@ -418,7 +418,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
 		}
 		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
-		makeReadyClusterPod(ctx, "c15", namespace, 0)
+		makeReadyClusterPod(ctx, "c15", 0)
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p15", Namespace: namespace},
@@ -452,7 +452,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
 		}
 		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
-		makeReadyClusterPod(ctx, "c14", namespace, 0)
+		makeReadyClusterPod(ctx, "c14", 0)
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p14", Namespace: namespace},
@@ -472,7 +472,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		// First reconcile: tear down the stream + clear placement, then requeue.
 		res, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(res.Requeue).To(BeTrue())
+		Expect(res.IsZero()).To(BeFalse())
 		Expect(fake.Has(url, "p14")).To(BeFalse())
 		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
 		Expect(got.Status.AssignedInstance).To(BeEmpty())

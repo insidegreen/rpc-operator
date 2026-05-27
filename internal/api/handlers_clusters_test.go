@@ -15,12 +15,12 @@ import (
 	"github.com/insidegreen/rpc-operator-claude/internal/api"
 )
 
-// clusterObj builds a PipelineCluster for seeding the fake client.
-func clusterObj(name, ns string, replicas, ready int32, phase rpcv1alpha1.PipelineClusterPhase) *rpcv1alpha1.PipelineCluster {
+// clusterObj builds a Ready PipelineCluster named "etl" in namespace "default" (readyReplicas=2).
+func clusterObj(replicas int32) *rpcv1alpha1.PipelineCluster {
 	return &rpcv1alpha1.PipelineCluster{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+		ObjectMeta: metav1.ObjectMeta{Name: "etl", Namespace: "default"},
 		Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: replicas},
-		Status:     rpcv1alpha1.PipelineClusterStatus{Phase: phase, ReadyReplicas: ready},
+		Status:     rpcv1alpha1.PipelineClusterStatus{Phase: rpcv1alpha1.ClusterPhaseReady, ReadyReplicas: 2},
 	}
 }
 
@@ -39,17 +39,17 @@ func clusterPod(name, ns, cluster string, ready bool) *corev1.Pod {
 	}
 }
 
-// clusteredPipeline builds a Pipeline assigned (Phase-2 placement) to an instance.
-func clusteredPipeline(name, ns, cluster, instance string) *rpcv1alpha1.Pipeline {
+// clusteredPipeline builds a Pipeline in namespace "default" assigned to cluster "etl".
+func clusteredPipeline(name, instance string) *rpcv1alpha1.Pipeline {
 	return &rpcv1alpha1.Pipeline{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
-		Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: cluster},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+		Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "etl"},
 		Status:     rpcv1alpha1.PipelineStatus{AssignedInstance: instance},
 	}
 }
 
 func TestHandlerListNamespacedClusters(t *testing.T) {
-	ts := newTestServer(t, clusterObj("etl", "default", 2, 2, rpcv1alpha1.ClusterPhaseReady))
+	ts := newTestServer(t, clusterObj(2))
 	defer ts.Close()
 
 	resp, err := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineclusters")
@@ -128,7 +128,7 @@ func TestHandlerCreateCluster_NamespaceMismatch(t *testing.T) {
 }
 
 func TestHandlerUpdateCluster_Scale(t *testing.T) {
-	ts := newTestServer(t, clusterObj("etl", "default", 2, 2, rpcv1alpha1.ClusterPhaseReady))
+	ts := newTestServer(t, clusterObj(2))
 	defer ts.Close()
 
 	req, _ := http.NewRequest(http.MethodPut,
@@ -152,7 +152,7 @@ func TestHandlerUpdateCluster_Scale(t *testing.T) {
 }
 
 func TestHandlerDeleteCluster(t *testing.T) {
-	ts := newTestServer(t, clusterObj("etl", "default", 2, 2, rpcv1alpha1.ClusterPhaseReady))
+	ts := newTestServer(t, clusterObj(2))
 	defer ts.Close()
 
 	req, _ := http.NewRequest(http.MethodDelete,
@@ -169,13 +169,13 @@ func TestHandlerDeleteCluster(t *testing.T) {
 
 func TestHandlerClusterInstances(t *testing.T) {
 	objs := []client.Object{
-		clusterObj("etl", "default", 3, 2, rpcv1alpha1.ClusterPhaseReady),
+		clusterObj(3),
 		clusterPod("etl-0", "default", "etl", true),
 		clusterPod("etl-1", "default", "etl", false),
-		clusteredPipeline("p1", "default", "etl", "etl-0"),
-		clusteredPipeline("p2", "default", "etl", "etl-0"),
-		clusteredPipeline("p3", "default", "etl", "etl-1"),
-		clusteredPipeline("p9", "default", "etl", "etl-5"), // stale
+		clusteredPipeline("p1", "etl-0"),
+		clusteredPipeline("p2", "etl-0"),
+		clusteredPipeline("p3", "etl-1"),
+		clusteredPipeline("p9", "etl-5"), // stale
 	}
 	ts := newTestServer(t, objs...)
 	defer ts.Close()
@@ -222,7 +222,7 @@ func TestHandlerClusterMetrics_SumsAcrossInstances(t *testing.T) {
 	prom := mockPrometheusServerCapturing(t, &captured)
 	defer prom.Close()
 
-	cl := clusterObj("etl", "default", 2, 2, rpcv1alpha1.ClusterPhaseReady)
+	cl := clusterObj(2)
 	ts := newTestServerWithPrometheus(t, prom.URL, cl)
 	defer ts.Close()
 
@@ -246,7 +246,7 @@ func TestHandlerClusterMetrics_SumsAcrossInstances(t *testing.T) {
 }
 
 func TestHandlerClusterMetrics_UnknownQuery(t *testing.T) {
-	cl := clusterObj("etl", "default", 2, 2, rpcv1alpha1.ClusterPhaseReady)
+	cl := clusterObj(2)
 	ts := newTestServerWithPrometheus(t, "http://unused", cl)
 	defer ts.Close()
 	resp, err := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineclusters/etl/metrics?query=bogus")
@@ -260,7 +260,7 @@ func TestHandlerClusterMetrics_UnknownQuery(t *testing.T) {
 }
 
 func TestHandlerClusterMetrics_PrometheusUnconfigured(t *testing.T) {
-	cl := clusterObj("etl", "default", 2, 2, rpcv1alpha1.ClusterPhaseReady)
+	cl := clusterObj(2)
 	ts := newTestServer(t, cl) // no PrometheusURL
 	defer ts.Close()
 	resp, err := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineclusters/etl/metrics?query=throughput")
