@@ -275,9 +275,10 @@ func nonRedirectingClient(t *testing.T) *http.Client {
 // to UIRedirectURL with #id_token=... in the Location). The returned client
 // holds the session cookie for follow-up /refresh or /logout calls.
 //
-// Note: HTTPS-only cookies set against an HTTP test server are NOT stored by
-// Go's cookiejar. The test sidesteps that by manually echoing the cookie back
-// on the callback request using the value parsed from the login Set-Cookie.
+// Note: HTTPS-only cookies set against an HTTP test server require two steps:
+// (1) the Secure cookie is manually echoed back on the /callback request via
+// req.AddCookie; (2) it is injected into the jar with Secure stripped, because
+// Go 1.25+ cookiejar enforces RFC 6265 and rejects Secure cookies from http:// origins.
 func driveLogin(t *testing.T, ts *httptest.Server, idp *mockIdP) (*http.Client, *http.Response) {
 	t.Helper()
 	c := nonRedirectingClient(t)
@@ -330,14 +331,20 @@ func driveLogin(t *testing.T, ts *httptest.Server, idp *mockIdP) (*http.Client, 
 		t.Fatalf("GET /auth/callback: %v", err)
 	}
 
-	// Persist the cookie back into the jar via URL scheme rewrite so follow-up
-	// /refresh and /logout requests carry it.
-	c.Jar.SetCookies(mustParseURL(t, ts.URL), []*http.Cookie{sessCookie})
+	// Persist the cookie into the jar so follow-up /refresh and /logout carry it.
+	// Strip Secure: Go 1.25+ cookiejar enforces RFC 6265 and silently drops
+	// Secure-flagged cookies when SetCookies is called with an http:// URL.
+	injectCookie := func(ck *http.Cookie) {
+		stripped := *ck
+		stripped.Secure = false
+		c.Jar.SetCookies(mustParseURL(t, ts.URL), []*http.Cookie{&stripped})
+	}
+	injectCookie(sessCookie)
 
 	// Also pick up any refreshed cookie set by /callback.
 	for _, ck := range cbResp.Cookies() {
 		if ck.Name == oidcCookieName && ck.Value != "" {
-			c.Jar.SetCookies(mustParseURL(t, ts.URL), []*http.Cookie{ck})
+			injectCookie(ck)
 		}
 	}
 
