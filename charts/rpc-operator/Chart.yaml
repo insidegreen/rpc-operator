@@ -6,8 +6,8 @@ description: |
   rollt pro Pipeline einen Pod aus.
   DEV-Scope: keine Auth — Chart nicht öffentlich exponieren.
 type: application
-version: 0.7.0
-appVersion: "0.7.0"
+version: 1.0.0
+appVersion: "1.0.0"
 keywords:
   - redpanda
   - benthos
