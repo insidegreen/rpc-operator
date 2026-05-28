@@ -1,0 +1,30 @@
+name: Build CI Image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ci-image:
+    name: Build and push CI image
+    runs-on: docker
+    container:
+      image: catthehacker/ubuntu:act-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Build & push (Kaniko)
+        uses: https://codeberg.org/umglurf/kaniko-action@main
+        with:
+          context: .
+          docker_file: .forgejo/Dockerfile.ci
+          push: true
+          credentials: |
+            git.home.arpa=${{ github.actor }}:${{ secrets.LOCAL_PUSH_TOKEN }}
+          destinations: git.home.arpa/tom/rpc-operator/ci:latest
