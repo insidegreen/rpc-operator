@@ -24,6 +24,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -150,5 +151,24 @@ var _ = Describe("PipelineProject Controller", func() {
 		}, ss2)).To(Succeed())
 		Expect(ss2.ResourceVersion).To(Equal(firstRV),
 			"StatefulSet must not be updated on no-op reconcile")
+	})
+
+	It("reports Phase=Provisioning when children are not yet ready", func() {
+		_, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		pp := &rpcv1alpha1.PipelineProject{}
+		Expect(k8sClient.Get(ctx, nn, pp)).To(Succeed())
+
+		// envtest has no kubelet, so the NATS StatefulSet never reports ready replicas.
+		Expect(pp.Status.Phase).To(Equal(rpcv1alpha1.ProjectPhaseProvisioning))
+		Expect(pp.Status.Cluster.Total).To(Equal(int32(2)))
+		Expect(pp.Status.NATS.Total).To(Equal(int32(1)))
+		Expect(pp.Status.ObservedGeneration).To(Equal(pp.Generation))
+
+		cond := apimeta.FindStatusCondition(pp.Status.Conditions, "Ready")
+		Expect(cond).NotTo(BeNil())
+		Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+		Expect(cond.Reason).To(Equal("Provisioning"))
 	})
 })

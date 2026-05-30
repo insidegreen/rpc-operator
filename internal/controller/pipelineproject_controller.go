@@ -22,6 +22,8 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -121,6 +123,56 @@ func (r *PipelineProjectReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, fmt.Errorf("apply nats statefulset: %w", err)
 	}
 
+	// Status: derive phase and child readiness from the children we just (re-)applied.
+	clusterChild := rpcv1alpha1.ProjectChildStatus{
+		Name:  cluster.Name,
+		Ready: cluster.Status.ReadyReplicas,
+		Total: cluster.Spec.Replicas,
+	}
+	natsChild := rpcv1alpha1.ProjectChildStatus{
+		Name:  ss.Name,
+		Ready: ss.Status.ReadyReplicas,
+		Total: natsReplicas,
+	}
+
+	phase := deriveProjectPhase(clusterChild, natsChild)
+
+	desiredCond := metav1.Condition{
+		Type:    "Ready",
+		Status:  metav1.ConditionFalse,
+		Reason:  "Provisioning",
+		Message: fmt.Sprintf("cluster %d/%d, nats %d/%d", clusterChild.Ready, clusterChild.Total, natsChild.Ready, natsChild.Total),
+	}
+	if phase == rpcv1alpha1.ProjectPhaseReady {
+		desiredCond.Status = metav1.ConditionTrue
+		desiredCond.Reason = "AllReady"
+	} else if phase == rpcv1alpha1.ProjectPhaseDegraded {
+		desiredCond.Reason = "ChildDegraded"
+	}
+
+	existingCond := apimeta.FindStatusCondition(project.Status.Conditions, "Ready")
+	condChanged := existingCond == nil ||
+		existingCond.Status != desiredCond.Status ||
+		existingCond.Reason != desiredCond.Reason ||
+		existingCond.Message != desiredCond.Message
+
+	if condChanged || project.Status.Phase != phase ||
+		project.Status.Cluster != clusterChild ||
+		project.Status.NATS != natsChild ||
+		project.Status.ObservedGeneration != project.Generation {
+		project.Status.Phase = phase
+		project.Status.Cluster = clusterChild
+		project.Status.NATS = natsChild
+		project.Status.ObservedGeneration = project.Generation
+		apimeta.SetStatusCondition(&project.Status.Conditions, desiredCond)
+		if err := r.Status().Update(ctx, &project); err != nil {
+			if apierrors.IsConflict(err) {
+				return ctrl.Result{Requeue: true}, nil
+			}
+			return ctrl.Result{}, err
+		}
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -138,6 +190,20 @@ func projectNATSStorage(p *rpcv1alpha1.PipelineProject) resource.Quantity {
 		return natsStorageDefault
 	}
 	return *p.Spec.NATS.Storage
+}
+
+// deriveProjectPhase returns the project's phase given the two child states.
+// Provisioning: at least one child not yet at desired ready count.
+// Ready:       both children fully ready.
+// Degraded:    intentionally unused in Phase 1 (no health checks beyond
+//              StatefulSet ready replicas yet); Phase 2 will use it when
+//              NATS stream provisioning starts emitting failure events.
+func deriveProjectPhase(cluster, nats rpcv1alpha1.ProjectChildStatus) rpcv1alpha1.PipelineProjectPhase {
+	if cluster.Total > 0 && cluster.Ready >= cluster.Total &&
+		nats.Total > 0 && nats.Ready >= nats.Total {
+		return rpcv1alpha1.ProjectPhaseReady
+	}
+	return rpcv1alpha1.ProjectPhaseProvisioning
 }
 
 // SetupWithManager sets up the controller with the Manager.
