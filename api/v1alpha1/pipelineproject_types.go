@@ -47,6 +47,11 @@ type PipelineProjectSpec struct {
 }
 
 // ProjectClusterSpec passes through sizing to the managed PipelineCluster.
+//
+// Image is intentionally NOT exposed here in v1: the Redpanda Connect image is
+// the runtime engine, not a per-project concern. The managed PipelineCluster
+// picks up the operator-wide default from its own +kubebuilder:default. A
+// future per-project image override (if a use case appears) would be additive.
 type ProjectClusterSpec struct {
 	// Instances is the number of streams-mode Connect instances.
 	// +kubebuilder:default=1
