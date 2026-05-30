@@ -270,3 +270,7 @@ func buildProjectNATSStatefulSet(
 		},
 	}
 }
+
+// NATSImageDefault returns the pinned default NATS server image used when no
+// override is supplied. Exposed for the operator CLI --help text.
+func NATSImageDefault() string { return natsImageDefault }

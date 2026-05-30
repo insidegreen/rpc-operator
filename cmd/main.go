@@ -68,6 +68,7 @@ func main() {
 	var probeAddr string
 	var apiAddr string
 	var prometheusURL string
+	var natsImage string
 	var watchNamespacesRaw string
 	var authEnabled bool
 	var anonymousRead bool
@@ -100,6 +101,9 @@ func main() {
 		"Address the REST API listens on. Empty string disables the API server.")
 	flag.StringVar(&prometheusURL, "prometheus-url", "",
 		"Prometheus base URL for PromQL queries (e.g. http://prometheus:9090). Empty disables metrics.")
+	flag.StringVar(&natsImage, "nats-image", "",
+		"Container image for the per-Project NATS JetStream StatefulSet. "+
+			"Empty uses the operator's pinned default ("+controller.NATSImageDefault()+").")
 	flag.StringVar(&watchNamespacesRaw, "watch-namespaces", "",
 		"Comma-separated namespace allowlist for operator cache and API. Empty = cluster-wide.")
 	flag.BoolVar(&authEnabled, "auth-enabled", true,
@@ -277,6 +281,15 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "pipelinecluster")
+		os.Exit(1)
+	}
+
+	if err := (&controller.PipelineProjectReconciler{
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		NATSImage: natsImage,
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "Failed to create controller", "controller", "pipelineproject")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
