@@ -7,6 +7,7 @@
 bin/*
 Dockerfile.cross
 values.yaml
+HANDOFF.md
 
 # Test binary, built with `go test -c`
 *.test

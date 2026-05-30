@@ -58,6 +58,7 @@ All design decisions are located in `docs/`. Always read the relevant specs befo
 - `docs/architecture.md` — System architecture, tech stack.
 - `docs/adrs/*` — Decision log in the form of ADRs.
 - `docs/prps/*` — Product Requirements Prompts, feature implementation plans.
+- `docs/archive/*` — Contains spec and plans that are archived and not relevant anymore. Do not read it!
 
 ## E2E Test Environment (ds9s3)
 
