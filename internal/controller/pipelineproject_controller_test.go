@@ -24,11 +24,13 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
@@ -71,6 +73,11 @@ var _ = Describe("PipelineProject Controller", func() {
 	AfterEach(func() {
 		pp := &rpcv1alpha1.PipelineProject{}
 		if err := k8sClient.Get(ctx, nn, pp); err == nil {
+			// Drop finalizer so the object is not stuck in terminating state.
+			if controllerutil.ContainsFinalizer(pp, projectFinalizer) {
+				controllerutil.RemoveFinalizer(pp, projectFinalizer)
+				_ = k8sClient.Update(ctx, pp)
+			}
 			_ = k8sClient.Delete(ctx, pp)
 		}
 		_ = k8sClient.Delete(ctx, &rpcv1alpha1.PipelineCluster{
@@ -88,7 +95,11 @@ var _ = Describe("PipelineProject Controller", func() {
 	})
 
 	It("creates child PipelineCluster, NATS ConfigMap, Service, and StatefulSet with owner refs", func() {
-		_, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		// First reconcile adds the finalizer and requeues; second does the work.
+		res, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(res.Requeue).To(BeTrue())
+		_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 		Expect(err).NotTo(HaveOccurred())
 
 		By("creating a child PipelineCluster owned by the project")
@@ -132,7 +143,11 @@ var _ = Describe("PipelineProject Controller", func() {
 	})
 
 	It("is idempotent on repeated reconcile", func() {
-		_, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		// Establish the finalizer first.
+		res, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(res.Requeue).To(BeTrue())
+		_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 		Expect(err).NotTo(HaveOccurred())
 
 		ss := &appsv1.StatefulSet{}
@@ -141,7 +156,7 @@ var _ = Describe("PipelineProject Controller", func() {
 		}, ss)).To(Succeed())
 		firstRV := ss.ResourceVersion
 
-		// Second reconcile must not churn the StatefulSet.
+		// Third reconcile must not churn the StatefulSet.
 		_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -154,7 +169,11 @@ var _ = Describe("PipelineProject Controller", func() {
 	})
 
 	It("reports Phase=Provisioning when children are not yet ready", func() {
-		_, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		// First reconcile adds the finalizer and requeues; second does the work.
+		res, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(res.Requeue).To(BeTrue())
+		_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 		Expect(err).NotTo(HaveOccurred())
 
 		pp := &rpcv1alpha1.PipelineProject{}
@@ -170,5 +189,105 @@ var _ = Describe("PipelineProject Controller", func() {
 		Expect(cond).NotTo(BeNil())
 		Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 		Expect(cond.Reason).To(Equal("Provisioning"))
+	})
+})
+
+var _ = Describe("PipelineProject Controller — PVC reclaim", func() {
+	const (
+		projectName = "billing"
+		namespace   = "default"
+	)
+
+	var (
+		ctx = context.Background()
+		nn  = types.NamespacedName{Name: projectName, Namespace: namespace}
+		r   *PipelineProjectReconciler
+	)
+
+	BeforeEach(func() {
+		r = &PipelineProjectReconciler{Client: k8sClient, Scheme: k8sClient.Scheme()}
+
+		project := &rpcv1alpha1.PipelineProject{
+			ObjectMeta: metav1.ObjectMeta{Name: projectName, Namespace: namespace},
+			Spec: rpcv1alpha1.PipelineProjectSpec{
+				NATS: &rpcv1alpha1.ProjectNATSSpec{
+					Replicas:             ptr.To[int32](1),
+					Storage:              ptr.To(resource.MustParse("1Gi")),
+					StorageReclaimPolicy: "Delete",
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, project)).To(Succeed())
+	})
+
+	AfterEach(func() {
+		pp := &rpcv1alpha1.PipelineProject{}
+		_ = k8sClient.Get(ctx, nn, pp)
+		// Drop finalizer if the test left it on.
+		if controllerutil.ContainsFinalizer(pp, "rpc.operator.io/pipelineproject") {
+			controllerutil.RemoveFinalizer(pp, "rpc.operator.io/pipelineproject")
+			_ = k8sClient.Update(ctx, pp)
+		}
+		_ = k8sClient.Delete(ctx, pp)
+		_ = k8sClient.Delete(ctx, &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: projectName + "-cluster", Namespace: namespace},
+		})
+		_ = k8sClient.Delete(ctx, &appsv1.StatefulSet{
+			ObjectMeta: metav1.ObjectMeta{Name: projectName + "-nats", Namespace: namespace},
+		})
+		_ = k8sClient.Delete(ctx, &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{Name: projectName + "-nats", Namespace: namespace},
+		})
+		_ = k8sClient.Delete(ctx, &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{Name: projectName + "-nats", Namespace: namespace},
+		})
+	})
+
+	It("deletes labelled PVCs on delete when reclaim policy is Delete", func() {
+		// Reconcile twice (finalizer add + provisioning).
+		_, err := r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		// envtest does not run the StatefulSet controller, so no real PVCs exist.
+		// Manually create one labelled like the project's PVCs to verify cleanup.
+		pvc := &corev1.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "data-" + projectName + "-nats-0",
+				Namespace: namespace,
+				Labels:    map[string]string{projectLabelKey: projectName, "rpc.operator.io/component": "nats"},
+			},
+			Spec: corev1.PersistentVolumeClaimSpec{
+				AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+				Resources: corev1.VolumeResourceRequirements{
+					Requests: corev1.ResourceList{corev1.ResourceStorage: resource.MustParse("1Gi")},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, pvc)).To(Succeed())
+
+		// Trigger deletion.
+		pp := &rpcv1alpha1.PipelineProject{}
+		Expect(k8sClient.Get(ctx, nn, pp)).To(Succeed())
+		Expect(k8sClient.Delete(ctx, pp)).To(Succeed())
+
+		// Reconcile after delete to run the finalizer cleanup.
+		_, err = r.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		// envtest adds kubernetes.io/pvc-protection automatically, so the PVC
+		// enters Terminating rather than disappearing immediately. Verify the
+		// operator issued the delete (DeletionTimestamp is set).
+		var remaining corev1.PersistentVolumeClaim
+		err = k8sClient.Get(ctx, types.NamespacedName{
+			Name: "data-" + projectName + "-nats-0", Namespace: namespace,
+		}, &remaining)
+		if apierrors.IsNotFound(err) {
+			// PVC is fully gone — also acceptable.
+			return
+		}
+		Expect(err).NotTo(HaveOccurred())
+		Expect(remaining.DeletionTimestamp).NotTo(BeNil(), "PVC should have been marked for deletion")
 	})
 })

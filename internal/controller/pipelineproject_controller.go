@@ -34,6 +34,11 @@ import (
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 )
 
+// projectFinalizer guards Project deletion until the operator has applied the
+// configured PVC reclaim policy. "Retain" leaves PVCs in place; "Delete"
+// removes them before the finalizer is cleared.
+const projectFinalizer = "rpc.operator.io/pipelineproject"
+
 // PipelineProjectReconciler reconciles a PipelineProject object: it owns a
 // child PipelineCluster CR and a NATS JetStream StatefulSet (with Service +
 // ConfigMap) in the same namespace. Phase 1 provisions infrastructure only;
@@ -57,6 +62,31 @@ func (r *PipelineProjectReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	var project rpcv1alpha1.PipelineProject
 	if err := r.Get(ctx, req.NamespacedName, &project); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	// Deletion path: run the configured reclaim policy, then drop the finalizer.
+	if !project.DeletionTimestamp.IsZero() {
+		if controllerutil.ContainsFinalizer(&project, projectFinalizer) {
+			if err := r.cleanupForDelete(ctx, &project); err != nil {
+				return ctrl.Result{}, fmt.Errorf("project cleanup: %w", err)
+			}
+			controllerutil.RemoveFinalizer(&project, projectFinalizer)
+			if err := r.Update(ctx, &project); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Ensure the finalizer is present before provisioning so deletion always
+	// goes through the cleanup branch above.
+	if !controllerutil.ContainsFinalizer(&project, projectFinalizer) {
+		controllerutil.AddFinalizer(&project, projectFinalizer)
+		if err := r.Update(ctx, &project); err != nil {
+			return ctrl.Result{}, err
+		}
+		// Requeue: the Update bumps resourceVersion; next reconcile owns provisioning.
+		return ctrl.Result{Requeue: true}, nil
 	}
 
 	// Step 1: Child PipelineCluster CR.
@@ -204,6 +234,36 @@ func deriveProjectPhase(cluster, nats rpcv1alpha1.ProjectChildStatus) rpcv1alpha
 		return rpcv1alpha1.ProjectPhaseReady
 	}
 	return rpcv1alpha1.ProjectPhaseProvisioning
+}
+
+// cleanupForDelete applies the configured PVC reclaim policy. With "Retain"
+// (default) the operator does nothing — Kubernetes leaves StatefulSet PVCs
+// in place after StatefulSet deletion. With "Delete" the operator removes
+// every PVC labelled with this project before clearing the finalizer.
+func (r *PipelineProjectReconciler) cleanupForDelete(
+	ctx context.Context, project *rpcv1alpha1.PipelineProject,
+) error {
+	policy := "Retain"
+	if project.Spec.NATS != nil && project.Spec.NATS.StorageReclaimPolicy != "" {
+		policy = project.Spec.NATS.StorageReclaimPolicy
+	}
+	if policy != "Delete" {
+		return nil
+	}
+
+	var pvcs corev1.PersistentVolumeClaimList
+	if err := r.List(ctx, &pvcs,
+		client.InNamespace(project.Namespace),
+		client.MatchingLabels{projectLabelKey: project.Name},
+	); err != nil {
+		return fmt.Errorf("list pvcs: %w", err)
+	}
+	for i := range pvcs.Items {
+		if err := r.Delete(ctx, &pvcs.Items[i]); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("delete pvc %s: %w", pvcs.Items[i].Name, err)
+		}
+	}
+	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
