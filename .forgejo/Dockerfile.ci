@@ -18,6 +18,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     git \
+    python3.12 \
+    python3-pip \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Go ────────────────────────────────────────────────────────────────────────
@@ -55,4 +59,6 @@ RUN go version \
     && golangci-lint --version \
     && controller-gen --version \
     && setup-envtest list | head -3 \
-    && ls /usr/local/kubebuilder/current/
+    && ls /usr/local/kubebuilder/current/ \
+    && node --version \
+    && python3.12 --version
