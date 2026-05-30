@@ -226,8 +226,9 @@ func projectNATSStorage(p *rpcv1alpha1.PipelineProject) resource.Quantity {
 // Provisioning: at least one child not yet at desired ready count.
 // Ready:       both children fully ready.
 // Degraded:    intentionally unused in Phase 1 (no health checks beyond
-//              StatefulSet ready replicas yet); Phase 2 will use it when
-//              NATS stream provisioning starts emitting failure events.
+//
+//	StatefulSet ready replicas yet); Phase 2 will use it when
+//	NATS stream provisioning starts emitting failure events.
 func deriveProjectPhase(cluster, nats rpcv1alpha1.ProjectChildStatus) rpcv1alpha1.PipelineProjectPhase {
 	if cluster.Total > 0 && cluster.Ready >= cluster.Total &&
 		nats.Total > 0 && nats.Ready >= nats.Total {
