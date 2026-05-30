@@ -61,6 +61,13 @@ spec:
             {{- with .Values.operator.prometheusUrl }}
             - --prometheus-url={{ . }}
             {{- end }}
+            {{- with .Values.features.projects.nats }}
+            {{- $img := .image -}}
+            {{- if and .image .tag }}{{- $img = printf "%s:%s" .image .tag }}{{- end }}
+            {{- if $img }}
+            - --nats-image={{ $img }}
+            {{- end }}
+            {{- end }}
             {{- with .Values.operator.watchNamespaces }}
             {{- if gt (len .) 0 }}
             - --watch-namespaces={{ join "," . }}

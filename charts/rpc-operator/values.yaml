@@ -62,6 +62,13 @@ anonymous:
 features:
   visualEditor:
     enabled: false
+  # F50: Pipeline Projects. The operator provisions one NATS JetStream
+  # StatefulSet per Project; this image is used for every NATS pod.
+  # Override for air-gapped clusters or pinned versions.
+  projects:
+    nats:
+      image: ""          # empty -> operator default (nats:2.10-alpine)
+      tag: ""            # empty -> use whatever tag is already in `image`
 
 # F20b: OIDC PKCE login (additive on F20a Bearer-Token-Layer). Public OAuth 2.0
 # client — kein client_secret noetig, PKCE S256 schuetzt den Auth-Code.
