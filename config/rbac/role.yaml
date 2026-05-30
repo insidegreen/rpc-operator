@@ -28,6 +28,15 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - persistentvolumeclaims
+  verbs:
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
   - pods/log
   verbs:
   - get
@@ -67,6 +76,7 @@ rules:
   - rpc.operator.io
   resources:
   - pipelineclusters
+  - pipelineprojects
   - pipelines
   verbs:
   - create
@@ -80,6 +90,7 @@ rules:
   - rpc.operator.io
   resources:
   - pipelineclusters/finalizers
+  - pipelineprojects/finalizers
   - pipelines/finalizers
   verbs:
   - update
@@ -87,6 +98,7 @@ rules:
   - rpc.operator.io
   resources:
   - pipelineclusters/status
+  - pipelineprojects/status
   - pipelines/status
   verbs:
   - get
