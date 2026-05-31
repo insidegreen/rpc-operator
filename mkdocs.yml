@@ -1,8 +1,9 @@
 site_name: RPC Operator
 site_description: User documentation for the Redpanda Connect Operator.
 site_url: https://insidegreen.github.io/rpc-operator/
-repo_url: https://forgejo.thecloudroute.com/tom/rpc-operator
-edit_uri: _edit/main/docs/user/
+repo_url: https://github.com/insidegreen/rpc-operator
+repo_name: insidegreen/rpc-operator
+edit_uri: edit/main/docs/user/
 docs_dir: docs/user
 site_dir: site
 strict: true
