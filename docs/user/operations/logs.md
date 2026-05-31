@@ -26,7 +26,7 @@ The operator exposes a WebSocket endpoint that streams structured log lines filt
 # With a Bearer token (Mode B):
 kubectl -n rpc-operator-system port-forward svc/rpc-operator 8082:8082 &
 TOK=$(kubectl -n <pipeline-namespace> create token alice --duration=1h)
-websocat "ws://localhost:8082/api/v1/namespaces/<pipeline-namespace>/pipelines/my-pipeline/logs?token=$TOK"
+tail -f /dev/null | websocat "ws://localhost:8082/api/v1/namespaces/<pipeline-namespace>/pipelines/my-pipeline/logs?token=$TOK"
 ```
 
 !!! note
@@ -38,7 +38,7 @@ When a pipeline runs as a stream on a `PipelineCluster`, its logs are mixed with
 
 ```bash
 # Same WebSocket endpoint works in stream mode:
-websocat "ws://localhost:8082/api/v1/namespaces/<pipeline-namespace>/pipelines/kafka-to-s3/logs?token=$TOK"
+tail -f /dev/null | websocat "ws://localhost:8082/api/v1/namespaces/<pipeline-namespace>/pipelines/kafka-to-s3/logs?token=$TOK"
 ```
 
 !!! note
