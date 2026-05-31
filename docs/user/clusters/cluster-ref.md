@@ -51,4 +51,4 @@ See [Reading logs](../operations/logs.md) and [Metrics and PodMonitor](../operat
 
 - `spec.clusterRef` and `spec.stopped` can be combined: setting `spec.stopped: true` on a stream pipeline removes the stream from the cluster without deleting the Pipeline CR.
 - The `PipelineCluster` must be in the same namespace as the `Pipeline`.
-- `spec.replicas` is ignored in stream mode (it applies to the cluster, not individual streams).
+- `spec.replicas` does not apply to stream pipelines; the number of instances is controlled by `PipelineCluster.spec.replicas`.

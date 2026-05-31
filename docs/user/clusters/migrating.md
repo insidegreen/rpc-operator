@@ -54,7 +54,7 @@ kubectl -n rpc-operator-poc get pipelines.rpc.operator.io my-stream -o jsonpath=
 If the source cluster is down (all instances crashed, cluster deleted), the stop step may fail with a stream-delete error. In this case you can force the migration:
 
 ```bash
-# Skip the stop step — go directly to updating clusterRef
+# Force migration: update clusterRef and resume in one patch
 kubectl -n rpc-operator-poc patch pipelines.rpc.operator.io my-stream \
   --type=merge -p '{"spec":{"clusterRef":"etl-large","stopped":false}}'
 ```
