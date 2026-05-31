@@ -64,4 +64,4 @@ Deleting the CR deletes the pod, ConfigMap, and PodMonitor.
 
 ## GitOps / CI/CD
 
-Because pipelines are Kubernetes resources, they work naturally with GitOps tooling (ArgoCD, Flux) or any CI pipeline that runs `kubectl apply`. Store your pipeline YAML in git and let your CD system apply changes on merge.
+Because pipelines are Kubernetes resources, they work naturally with GitOps tooling (ArgoCD, Flux) or any CI pipeline that runs `kubectl apply`. Store your pipeline YAML in git and let your CD system apply changes on merge. See [Pipeline anatomy](anatomy.md) for the full manifest format.

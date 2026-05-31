@@ -54,7 +54,7 @@ Default: `docker.redpanda.com/redpandadata/connect:4`
 
 ## `spec.replicas`
 
-Currently fixed at `1`. Multi-replica support is planned for a future release. Omit this field or set it to `1`.
+Currently fixed at `1`. Omit this field or set it to `1`.
 
 ## `spec.secretRefs`
 

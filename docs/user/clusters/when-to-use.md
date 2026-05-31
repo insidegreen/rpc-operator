@@ -39,6 +39,8 @@ Use stream mode when:
 
 ## Decision guide
 
+If you are unsure which model to use:
+
 ```
 ┌─────────────────────────────────────────┐
 │ Do you have > 20 concurrent pipelines?  │
