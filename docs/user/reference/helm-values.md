@@ -52,4 +52,5 @@ Complete reference for all values in `charts/rpc-operator/values.yaml`. For cont
 | `podSecurityContext.seccompProfile.type` | string | `RuntimeDefault` | Seccomp profile |
 | `containerSecurityContext.readOnlyRootFilesystem` | boolean | `true` | Read-only root filesystem |
 | `containerSecurityContext.allowPrivilegeEscalation` | boolean | `false` | Block privilege escalation |
+| `containerSecurityContext.capabilities.drop` | list | `[ALL]` | Linux capabilities to drop |
 | `examples.enabled` | boolean | `false` | Install sample pipelines for smoke tests |
