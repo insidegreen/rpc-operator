@@ -15,7 +15,15 @@ permissions:
 
 env:
   EXCLUDE_PATHS: |
-    docs/
+    docs/superpowers/
+    docs/prps/
+    docs/adrs/
+    docs/features/
+    docs/concepts/
+    docs/archive/
+    docs/test/
+    docs/prd.md
+    docs/architecture.md
     HANDOFF.md
     .claude/
     skills/

@@ -1,0 +1,52 @@
+name: Docs
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'docs/user/**'
+      - 'mkdocs.yml'
+      - 'requirements-docs.txt'
+      - 'api/v1alpha1/**'
+      - 'hack/docs-check-reference*'
+      - '.forgejo/workflows/docs.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: mkdocs build --strict
+    runs-on: docker
+    container:
+      image: forgejo.thecloudroute.com/tom/rpc-operator/ci:latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install MkDocs toolchain
+        run: pip3 install --quiet -r requirements-docs.txt
+
+      - name: Build docs (strict)
+        run: mkdocs build --strict
+
+  reference-drift:
+    name: docs-check-reference
+    runs-on: docker
+    container:
+      image: forgejo.thecloudroute.com/tom/rpc-operator/ci:latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run drift check
+        run: go run ./hack/docs-check-reference.go

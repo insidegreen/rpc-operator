@@ -51,3 +51,7 @@ run.sh
 
 # Superpowers plugin state (worktrees, cache, session data)
 .superpowers/
+
+# Docs build artifacts and venv
+/.venv-docs/
+/site/
