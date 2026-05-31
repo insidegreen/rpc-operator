@@ -20,8 +20,15 @@ func main() {
 	}
 
 	// Extract fields from CRD types
-	pipelineFields := collectGoFieldsFromSource("api/v1alpha1/pipeline_types.go", "PipelineSpec")
-	clusterFields := collectGoFieldsFromSource("api/v1alpha1/pipelinecluster_types.go", "PipelineClusterSpec")
+	pipelineSpecFields := collectGoFieldsFromSource("api/v1alpha1/pipeline_types.go", "PipelineSpec")
+	pipelineStatusFields := collectGoFieldsFromSource("api/v1alpha1/pipeline_types.go", "PipelineStatus")
+	pipelineFields := append(pipelineSpecFields, pipelineStatusFields...)
+	sort.Strings(pipelineFields)
+
+	clusterSpecFields := collectGoFieldsFromSource("api/v1alpha1/pipelinecluster_types.go", "PipelineClusterSpec")
+	clusterStatusFields := collectGoFieldsFromSource("api/v1alpha1/pipelinecluster_types.go", "PipelineClusterStatus")
+	clusterFields := append(clusterSpecFields, clusterStatusFields...)
+	sort.Strings(clusterFields)
 
 	// Extract headings from documentation
 	pipelineDocHeadings := collectDocHeadings("docs/user/reference/pipeline-crd.md")
