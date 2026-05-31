@@ -118,14 +118,12 @@ lint-config: golangci-lint ## Verify golangci-lint linter configuration
 
 .PHONY: docs-serve
 docs-serve: ## Serve user docs locally (venv + mkdocs serve).
-	@command -v python3.12 >/dev/null 2>&1 || { echo "Error: Python 3.12 required"; exit 1; }
-	@test -d .venv-docs || python3.12 -m venv .venv-docs
+	@test -d .venv-docs || python3 -m venv .venv-docs
 	@. .venv-docs/bin/activate && pip install --quiet -r requirements-docs.txt && mkdocs serve
 
 .PHONY: docs-build
 docs-build: ## Build user docs (venv + mkdocs build --strict).
-	@command -v python3.12 >/dev/null 2>&1 || { echo "Error: Python 3.12 required"; exit 1; }
-	@test -d .venv-docs || python3.12 -m venv .venv-docs
+	@test -d .venv-docs || python3 -m venv .venv-docs
 	@. .venv-docs/bin/activate && pip install --quiet -r requirements-docs.txt && mkdocs build --strict
 
 .PHONY: docs-check-reference
