@@ -7,8 +7,6 @@ import (
 	"go/token"
 	"log"
 	"os"
-	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 )
@@ -71,7 +69,7 @@ func collectGoFieldsFromSource(filepath string, typeName string) []string {
 
 			inTarget = true
 			for _, field := range structType.Fields.List {
-				for _, name := range field.Names {
+				for range field.Names {
 					jsonTag := extractJSONTag(field)
 					if jsonTag != "" && !strings.Contains(jsonTag, ",") {
 						fields = append(fields, jsonTag)
