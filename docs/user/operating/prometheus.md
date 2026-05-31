@@ -28,26 +28,31 @@ helm upgrade rpc-operator ./charts/rpc-operator \
 
 Each pipeline pod exposes Redpanda Connect's built-in Prometheus metrics on port 4195 at `/metrics`. The metrics include:
 
-| Metric pattern | Description |
+| Metric | Description |
 |---|---|
-| `redpanda_connect_input_received_total` | Messages received by the input |
-| `redpanda_connect_output_sent_total` | Messages successfully sent by the output |
-| `redpanda_connect_output_error_total` | Output errors |
-| `redpanda_connect_processor_error_total` | Processor errors |
+| `input_received` | Messages received by the input |
+| `output_sent` | Messages successfully sent by the output |
+| `output_error` | Output errors |
+| `processor_error` | Processor errors |
 
-The operator API surfaces two derived metrics via its `/metrics` endpoint:
-- `throughput` — `rate(input_received_total[1m])`
-- `error_rate` — `rate(output_error_total[1m])`
+The operator API exposes four query names via its `/metrics?query=<name>` endpoint:
+
+| Query name | PromQL | Description |
+|---|---|---|
+| `throughput` | `rate(output_sent{pod="<pod>"}[1m])` | Output messages per second |
+| `error_rate` | `rate(output_error{pod="<pod>"}[1m])` | Output errors per second |
+| `input_rate` | `rate(input_received{pod="<pod>"}[1m])` | Input messages per second |
+| `processor_error_rate` | `rate(processor_error{pod="<pod>"}[1m])` | Processor errors per second |
 
 ## PodMonitor per pipeline
 
-The operator creates one `PodMonitor` per `Pipeline` CR in the same namespace, named `<pipeline-name>-monitor`. It targets the pipeline pod by its `rpc.operator.io/pipeline` label and scrapes port 4195.
+The operator creates one `PodMonitor` per `Pipeline` CR in the same namespace, with the same name as the pipeline. It targets the pipeline pod by its `rpc.operator.io/pipeline` label and scrapes port 4195.
 
 You can inspect a PodMonitor:
 
 ```bash
 kubectl -n <pipeline-namespace> get podmonitors
-kubectl -n <pipeline-namespace> describe podmonitor <pipeline-name>-monitor
+kubectl -n <pipeline-namespace> describe podmonitor <pipeline-name>
 ```
 
 ## Verify metrics are flowing
@@ -55,5 +60,5 @@ kubectl -n <pipeline-namespace> describe podmonitor <pipeline-name>-monitor
 ```bash
 # Port-forward to the pipeline pod's metrics endpoint:
 kubectl -n <pipeline-namespace> port-forward pod/<pipeline-pod> 4195:4195
-curl http://localhost:4195/metrics | grep redpanda_connect_input
+curl http://localhost:4195/metrics | grep output_sent
 ```
