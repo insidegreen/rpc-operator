@@ -229,6 +229,34 @@ var _ = Describe("PipelineProject Controller", func() {
 		Expect(apimeta.IsStatusConditionTrue(pp.Status.Conditions, "RoutesValid")).To(BeTrue())
 		Expect(pp.Status.Routes).To(HaveLen(1))
 	})
+
+	It("marks the project Degraded and skips provisioning on an invalid route graph", func() {
+		fake := nats.NewFakeManager()
+		rr := &PipelineProjectReconciler{Client: k8sClient, Scheme: k8sClient.Scheme(), Streams: fake}
+
+		// Route references a pipeline that does not exist in the project.
+		pp := &rpcv1alpha1.PipelineProject{}
+		Expect(k8sClient.Get(ctx, nn, pp)).To(Succeed())
+		pp.Spec.Routes = []rpcv1alpha1.ProjectRoute{
+			{Name: "bad", From: "ghost", To: []rpcv1alpha1.ProjectRouteTarget{{Pipeline: "void"}}},
+		}
+		Expect(k8sClient.Update(ctx, pp)).To(Succeed())
+
+		_, _ = rr.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		_, err := rr.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(k8sClient.Get(ctx, nn, pp)).To(Succeed())
+		Expect(pp.Status.Phase).To(Equal(rpcv1alpha1.ProjectPhaseDegraded))
+		cond := apimeta.FindStatusCondition(pp.Status.Conditions, "RoutesValid")
+		Expect(cond).NotTo(BeNil())
+		Expect(cond.Status).To(Equal(metav1.ConditionFalse))
+		Expect(cond.Message).To(Equal("route 'bad' from='ghost': pipeline not found in project"))
+
+		// No stream should have been provisioned for an invalid graph.
+		url := projectroute.NATSURL(projectName, namespace)
+		Expect(fake.Has(url, projectroute.StreamName(projectName, "bad"))).To(BeFalse())
+	})
 })
 
 var _ = Describe("PipelineProject Controller — PVC reclaim", func() {

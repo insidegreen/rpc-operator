@@ -19,6 +19,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -235,7 +236,9 @@ func (r *PipelineProjectReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		existingCond.Reason != desiredCond.Reason ||
 		existingCond.Message != desiredCond.Message
 
-	if condChanged || routesCondChanged || project.Status.Phase != phase ||
+	if condChanged || routesCondChanged ||
+		!reflect.DeepEqual(project.Status.Routes, routeStatuses) ||
+		project.Status.Phase != phase ||
 		project.Status.Cluster != clusterChild ||
 		project.Status.NATS != natsChild ||
 		project.Status.ObservedGeneration != project.Generation {

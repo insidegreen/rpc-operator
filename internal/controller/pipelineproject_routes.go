@@ -55,6 +55,12 @@ func (r *PipelineProjectReconciler) validateProjectRoutes(ctx context.Context, p
 // reconcileRouteStreams ensures one JetStream stream exists per route and
 // deletes streams for routes that no longer exist (compared to last status).
 func (r *PipelineProjectReconciler) reconcileRouteStreams(ctx context.Context, project *rpcv1alpha1.PipelineProject) ([]rpcv1alpha1.ProjectRouteStatus, error) {
+	// Defensive: no stream manager wired (e.g. older test reconciler). Skip
+	// provisioning rather than panic; production always injects one (cmd/main.go).
+	if r.Streams == nil {
+		return projectroute.RouteStatuses(project), nil
+	}
+
 	natsURL := projectroute.NATSURL(project.Name, project.Namespace)
 	defaultRet := projectDefaultRetention(project)
 
