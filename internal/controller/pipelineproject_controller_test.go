@@ -34,6 +34,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
+	"github.com/insidegreen/rpc-operator-claude/internal/nats"
+	"github.com/insidegreen/rpc-operator-claude/internal/projectroute"
 )
 
 var _ = Describe("PipelineProject Controller", func() {
@@ -189,6 +191,43 @@ var _ = Describe("PipelineProject Controller", func() {
 		Expect(cond).NotTo(BeNil())
 		Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 		Expect(cond.Reason).To(Equal("Provisioning"))
+	})
+
+	It("provisions a stream per route and reports RoutesValid", func() {
+		fake := nats.NewFakeManager()
+		rr := &PipelineProjectReconciler{Client: k8sClient, Scheme: k8sClient.Scheme(), Streams: fake}
+
+		for _, n := range []string{"ingest", "sink"} {
+			Expect(k8sClient.Create(ctx, &rpcv1alpha1.Pipeline{
+				ObjectMeta: metav1.ObjectMeta{Name: n, Namespace: namespace},
+				Spec:       rpcv1alpha1.PipelineSpec{ProjectRef: &rpcv1alpha1.ProjectRef{Name: projectName}},
+			})).To(Succeed())
+		}
+		DeferCleanup(func() {
+			for _, n := range []string{"ingest", "sink"} {
+				_ = k8sClient.Delete(ctx, &rpcv1alpha1.Pipeline{
+					ObjectMeta: metav1.ObjectMeta{Name: n, Namespace: namespace},
+				})
+			}
+		})
+
+		pp := &rpcv1alpha1.PipelineProject{}
+		Expect(k8sClient.Get(ctx, nn, pp)).To(Succeed())
+		pp.Spec.Routes = []rpcv1alpha1.ProjectRoute{
+			{Name: "fan-out", From: "ingest", To: []rpcv1alpha1.ProjectRouteTarget{{Pipeline: "sink"}}},
+		}
+		Expect(k8sClient.Update(ctx, pp)).To(Succeed())
+
+		_, _ = rr.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		_, err := rr.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		url := projectroute.NATSURL(projectName, namespace)
+		Expect(fake.Has(url, projectroute.StreamName(projectName, "fan-out"))).To(BeTrue())
+
+		Expect(k8sClient.Get(ctx, nn, pp)).To(Succeed())
+		Expect(apimeta.IsStatusConditionTrue(pp.Status.Conditions, "RoutesValid")).To(BeTrue())
+		Expect(pp.Status.Routes).To(HaveLen(1))
 	})
 })
 

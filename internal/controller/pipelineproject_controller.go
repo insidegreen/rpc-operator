@@ -27,11 +27,16 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
+	"github.com/insidegreen/rpc-operator-claude/internal/nats"
 )
 
 // projectFinalizer guards Project deletion until the operator has applied the
@@ -50,12 +55,20 @@ type PipelineProjectReconciler struct {
 	// NATSImage overrides the default NATS server image. Wired via the chart
 	// (features.projects.nats.image+tag) and passed in from main.go.
 	NATSImage string
+
+	// Streams provisions one JetStream stream per valid route. Wired from main.go.
+	Streams nats.StreamManager
+
+	// Recorder emits Events (e.g. an InvalidRoutes warning on a bad route graph).
+	Recorder record.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=rpc.operator.io,resources=pipelineprojects,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rpc.operator.io,resources=pipelineprojects/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=rpc.operator.io,resources=pipelineprojects/finalizers,verbs=update
 // +kubebuilder:rbac:groups=core,resources=persistentvolumeclaims,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=rpc.operator.io,resources=pipelines,verbs=get;list;watch
 
 // Reconcile drives a PipelineProject towards its desired state.
 func (r *PipelineProjectReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -153,6 +166,25 @@ func (r *PipelineProjectReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, fmt.Errorf("apply nats statefulset: %w", err)
 	}
 
+	// Validate the route graph against live pipelines. An invalid graph marks
+	// the project Degraded and skips stream provisioning (the operational
+	// admission gate).
+	routeErr, err := r.validateProjectRoutes(ctx, &project)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("validate routes: %w", err)
+	}
+	if routeErr != "" && r.Recorder != nil {
+		r.Recorder.Event(&project, corev1.EventTypeWarning, "InvalidRoutes", routeErr)
+	}
+
+	var routeStatuses []rpcv1alpha1.ProjectRouteStatus
+	if routeErr == "" {
+		routeStatuses, err = r.reconcileRouteStreams(ctx, &project)
+		if err != nil {
+			return ctrl.Result{}, fmt.Errorf("reconcile route streams: %w", err)
+		}
+	}
+
 	// Status: derive phase and child readiness from the children we just (re-)applied.
 	clusterChild := rpcv1alpha1.ProjectChildStatus{
 		Name:  cluster.Name,
@@ -166,6 +198,23 @@ func (r *PipelineProjectReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	}
 
 	phase := deriveProjectPhase(clusterChild, natsChild)
+
+	if routeErr != "" {
+		phase = rpcv1alpha1.ProjectPhaseDegraded
+	}
+
+	routesCond := metav1.Condition{
+		Type: "RoutesValid", Status: metav1.ConditionTrue, Reason: "Valid", Message: "all routes valid",
+	}
+	if routeErr != "" {
+		routesCond.Status = metav1.ConditionFalse
+		routesCond.Reason = "InvalidRoutes"
+		routesCond.Message = routeErr
+	}
+	existingRoutesCond := apimeta.FindStatusCondition(project.Status.Conditions, "RoutesValid")
+	routesCondChanged := existingRoutesCond == nil ||
+		existingRoutesCond.Status != routesCond.Status ||
+		existingRoutesCond.Message != routesCond.Message
 
 	desiredCond := metav1.Condition{
 		Type:    "Ready",
@@ -186,7 +235,7 @@ func (r *PipelineProjectReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		existingCond.Reason != desiredCond.Reason ||
 		existingCond.Message != desiredCond.Message
 
-	if condChanged || project.Status.Phase != phase ||
+	if condChanged || routesCondChanged || project.Status.Phase != phase ||
 		project.Status.Cluster != clusterChild ||
 		project.Status.NATS != natsChild ||
 		project.Status.ObservedGeneration != project.Generation {
@@ -194,7 +243,9 @@ func (r *PipelineProjectReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		project.Status.Cluster = clusterChild
 		project.Status.NATS = natsChild
 		project.Status.ObservedGeneration = project.Generation
+		project.Status.Routes = routeStatuses
 		apimeta.SetStatusCondition(&project.Status.Conditions, desiredCond)
+		apimeta.SetStatusCondition(&project.Status.Conditions, routesCond)
 		if err := r.Status().Update(ctx, &project); err != nil {
 			if apierrors.IsConflict(err) {
 				return ctrl.Result{Requeue: true}, nil
@@ -269,12 +320,23 @@ func (r *PipelineProjectReconciler) cleanupForDelete(
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *PipelineProjectReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.Recorder = mgr.GetEventRecorderFor("pipelineproject")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&rpcv1alpha1.PipelineProject{}).
 		Owns(&rpcv1alpha1.PipelineCluster{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Service{}).
 		Owns(&appsv1.StatefulSet{}).
+		Watches(&rpcv1alpha1.Pipeline{}, handler.EnqueueRequestsFromMapFunc(
+			func(ctx context.Context, obj client.Object) []reconcile.Request {
+				p, ok := obj.(*rpcv1alpha1.Pipeline)
+				if !ok || p.Spec.ProjectRef == nil {
+					return nil
+				}
+				return []reconcile.Request{{NamespacedName: types.NamespacedName{
+					Name: p.Spec.ProjectRef.Name, Namespace: p.Namespace,
+				}}}
+			})).
 		Named("pipelineproject").
 		Complete(r)
 }
