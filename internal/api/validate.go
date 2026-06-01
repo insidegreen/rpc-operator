@@ -8,9 +8,11 @@ import (
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/yaml"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 	"github.com/insidegreen/rpc-operator-claude/internal/api/catalog"
+	"github.com/insidegreen/rpc-operator-claude/internal/projectroute"
 	"github.com/insidegreen/rpc-operator-claude/internal/render"
 )
 
@@ -25,6 +27,11 @@ type ValidationError struct {
 // ValidatePipeline schema-validates each component against the catalog and then
 // performs a render dry-run. Returns nil if the pipeline is valid.
 func ValidatePipeline(p *rpcv1alpha1.Pipeline, cat *catalog.Catalog) []ValidationError {
+	// F50.2: projectRef and clusterRef are mutually exclusive.
+	if p.Spec.ProjectRef != nil && p.Spec.ClusterRef != "" {
+		return []ValidationError{{Path: "spec.projectRef", Message: "use projectRef or clusterRef, not both"}}
+	}
+
 	if p.Spec.RawYAML != "" {
 		// Raw mode: skip catalog validation; only check YAML syntax via render dry-run.
 		var errs []ValidationError
@@ -39,7 +46,9 @@ func ValidatePipeline(p *rpcv1alpha1.Pipeline, cat *catalog.Catalog) []Validatio
 	}
 
 	var errs []ValidationError
-	errs = append(errs, validateComponent("spec.input", &p.Spec.Input, "inputs", cat)...)
+	if !(p.Spec.ProjectRef != nil && p.Spec.Input.Type == "") {
+		errs = append(errs, validateComponent("spec.input", &p.Spec.Input, "inputs", cat)...)
+	}
 	for i := range p.Spec.Processors {
 		path := fmt.Sprintf("spec.processors[%d]", i)
 		errs = append(errs, validateComponent(path, &p.Spec.Processors[i], "processors", cat)...)
@@ -50,12 +59,16 @@ func ValidatePipeline(p *rpcv1alpha1.Pipeline, cat *catalog.Catalog) []Validatio
 			})
 		}
 	}
-	errs = append(errs, validateComponent("spec.output", &p.Spec.Output, "outputs", cat)...)
+	if !(p.Spec.ProjectRef != nil && p.Spec.Output.Type == "") {
+		errs = append(errs, validateComponent("spec.output", &p.Spec.Output, "outputs", cat)...)
+	}
 
 	errs = append(errs, validateSecretRefs(p.Spec.SecretRefs)...)
 
-	if _, rerr := render.RenderPipelineYAML(&p.Spec); rerr != nil {
-		errs = append(errs, ValidationError{Path: "spec", Message: "render failed: " + rerr.Error()})
+	if p.Spec.ProjectRef == nil {
+		if _, rerr := render.RenderPipelineYAML(&p.Spec); rerr != nil {
+			errs = append(errs, ValidationError{Path: "spec", Message: "render failed: " + rerr.Error()})
+		}
 	}
 	return errs
 }
@@ -225,4 +238,38 @@ func validateConfig(path string, raw []byte, schema json.RawMessage) []Validatio
 		return []ValidationError{{Path: path, Message: err.Error()}}
 	}
 	return nil
+}
+
+// ValidateProject validates a project's route graph against the given pipelines
+// (all pipelines in the project's namespace). Returns nil when valid.
+func ValidateProject(p *rpcv1alpha1.PipelineProject, pipelines []rpcv1alpha1.Pipeline) []ValidationError {
+	views := make(map[string]projectroute.PipelineView, len(pipelines))
+	for i := range pipelines {
+		pp := &pipelines[i]
+		proj := ""
+		if pp.Spec.ProjectRef != nil {
+			proj = pp.Spec.ProjectRef.Name
+		}
+		views[pp.Name] = projectroute.PipelineView{
+			Name:        pp.Name,
+			ProjectName: proj,
+			HasInput:    (pp.Spec.RawYAML == "" && pp.Spec.Input.Type != "") || (pp.Spec.RawYAML != "" && rawTopKey(pp.Spec.RawYAML, "input")),
+			HasOutput:   (pp.Spec.RawYAML == "" && pp.Spec.Output.Type != "") || (pp.Spec.RawYAML != "" && rawTopKey(pp.Spec.RawYAML, "output")),
+		}
+	}
+	var out []ValidationError
+	for _, e := range projectroute.ValidateProject(p, views) {
+		out = append(out, ValidationError{Path: "spec.routes", Message: e.Message})
+	}
+	return out
+}
+
+// rawTopKey reports whether rawYAML parses to a mapping containing key.
+func rawTopKey(rawYAML, key string) bool {
+	var m map[string]any
+	if err := yaml.Unmarshal([]byte(rawYAML), &m); err != nil {
+		return false
+	}
+	_, ok := m[key]
+	return ok
 }
