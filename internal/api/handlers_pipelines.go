@@ -8,6 +8,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
+	"github.com/insidegreen/rpc-operator-claude/internal/projectroute"
 	"github.com/insidegreen/rpc-operator-claude/internal/render"
 )
 
@@ -191,7 +192,35 @@ func (s *Server) handleRender(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusUnprocessableEntity, "render failed", err.Error())
 		return
 	}
+	if p.Spec.ProjectRef != nil {
+		if c, cerr := s.clientForRequest(r); cerr == nil {
+			var project rpcv1alpha1.PipelineProject
+			if gerr := c.Get(r.Context(), client.ObjectKey{Name: p.Spec.ProjectRef.Name, Namespace: p.Namespace}, &project); gerr == nil {
+				plan := projectroute.PlanFor(&project, p.Namespace, p.Name)
+				if !plan.IsEmpty() {
+					rewritten, rerr := render.ApplyProjectIO(yamlText, render.ProjectIOPlan{
+						NATSURL:          plan.NATSURL,
+						OutgoingSubjects: plan.OutgoingSubjects,
+						Incoming:         incomingToRender(plan.Incoming),
+					})
+					if rerr == nil {
+						yamlText = rewritten
+					}
+				}
+			}
+		}
+		// Best-effort preview: any client/lookup/rewrite failure falls back to
+		// the un-rewritten YAML; pipeline status surfaces ProjectNotFound.
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"yaml": yamlText})
+}
+
+func incomingToRender(in []projectroute.IncomingTarget) []render.IncomingRoute {
+	out := make([]render.IncomingRoute, 0, len(in))
+	for _, t := range in {
+		out = append(out, render.IncomingRoute{Subject: t.Subject, Durable: t.Durable, When: t.When})
+	}
+	return out
 }
 
 func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
