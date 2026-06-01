@@ -2,6 +2,57 @@
 
 All notable changes to this project are documented here.
 
+## F50.2 Pipeline Projects — Routes & I/O Rewriting — 2026-06-01
+
+**Commits:** `481b608`..`4f08e2c`
+
+Wires the Pipelines of a PipelineProject together over NATS JetStream. A
+project's `spec.routes[]` now provisions one JetStream stream per route and the
+operator rewrites the input/output of project-attached Pipelines at render time
+so messages flow `from → to[]` over NATS — users only author the non-managed
+side of each pipeline.
+
+> **Status:** code-complete; build + unit/envtest green. End-to-end verification
+> on the `ds9s3` cluster is still pending.
+
+### Added
+
+- **`Pipeline.spec.projectRef`** — attaches a Pipeline to a PipelineProject. A
+  projectRef pipeline runs as a stream on the project's managed cluster
+  (`<project>-cluster`, the F47 path) rather than as a standalone pod.
+- **`internal/projectroute`** — pure package: stable naming
+  (`rpc-<project>-<route>` stream, `rpc.<project>.<route>` subject,
+  `<project>-<route>-<pipeline>` durable, `nats://<project>-nats.<ns>.svc:4222`),
+  per-pipeline role computation (standalone/source/middle/sink) and I/O plan,
+  plus route-graph validation with exact rejection messages (missing/unknown
+  pipeline references, cycles, predicate compilation, I/O conflicts, and
+  producer/consumer mutual-exclusion).
+- **Per-route JetStream streams** — the PipelineProject controller ensures one
+  stream per valid route (with configurable retention; 24h / 1Gi defaults) and
+  prunes stale streams; stream provisioning is skipped when the graph is invalid.
+- **Route-driven I/O rewriting** (`render.ApplyProjectIO`) — injects
+  `nats_jetstream` input/output (single or `broker` for fan-out/fan-in) and a
+  consumer-side Bloblang `when:` filter (a `mapping` predicate, or a
+  `switch`-on-`@nats_subject` for fan-in), applied **before** F48 secret
+  substitution and `PUT /streams`. The Pipeline CR is never mutated.
+- **`/render` preview** now shows the operator-injected NATS I/O for projectRef
+  pipelines, so the UI preview matches the deployed stream config.
+- **API + controller validation** — `ValidatePipeline` rejects
+  `projectRef`+`clusterRef` together and allows an empty operator-managed I/O
+  side; `ValidateProject` delegates to the shared graph validator. An invalid
+  graph marks the Project `Degraded`, emits a `Warning InvalidRoutes` event, and
+  surfaces a `RoutesValid=False` condition.
+- **Sample:** `config/samples/rpc_v1alpha1_pipeline_projectref.yaml` — a routed
+  `orders` project (ingest fans out to warehouse + a high-severity-only alert).
+
+### Notes
+
+- A true Kubernetes `ValidatingWebhookConfiguration` is intentionally **deferred**
+  (no cert-manager/webhook infrastructure); validation is enforced at the
+  controller and API layers instead.
+- Route-change → immediate pipeline re-render via `Watches(&PipelineProject{})`
+  is deferred; v1 relies on the existing resync interval.
+
 ## User Documentation v1 — 2026-05-31
 
 **Commit:** `e51ae30`
