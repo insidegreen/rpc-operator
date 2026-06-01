@@ -276,13 +276,12 @@ func projectNATSStorage(p *rpcv1alpha1.PipelineProject) resource.Quantity {
 	return *p.Spec.NATS.Storage
 }
 
-// deriveProjectPhase returns the project's phase given the two child states.
-// Provisioning: at least one child not yet at desired ready count.
-// Ready:       both children fully ready.
-// Degraded:    intentionally unused in Phase 1 (no health checks beyond
-//
-//	StatefulSet ready replicas yet); Phase 2 will use it when
-//	NATS stream provisioning starts emitting failure events.
+// deriveProjectPhase returns the project's phase from the two child states.
+// Provisioning: at least one child not yet at its desired ready count.
+// Ready:        both children fully ready.
+// Note: Reconcile overrides the result to Degraded when the route graph is
+// invalid (see the RoutesValid handling); this function only covers child
+// readiness.
 func deriveProjectPhase(cluster, nats rpcv1alpha1.ProjectChildStatus) rpcv1alpha1.PipelineProjectPhase {
 	if cluster.Total > 0 && cluster.Ready >= cluster.Total &&
 		nats.Total > 0 && nats.Ready >= nats.Total {
@@ -330,16 +329,30 @@ func (r *PipelineProjectReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Service{}).
 		Owns(&appsv1.StatefulSet{}).
-		Watches(&rpcv1alpha1.Pipeline{}, handler.EnqueueRequestsFromMapFunc(
-			func(ctx context.Context, obj client.Object) []reconcile.Request {
-				p, ok := obj.(*rpcv1alpha1.Pipeline)
-				if !ok || p.Spec.ProjectRef == nil {
-					return nil
-				}
-				return []reconcile.Request{{NamespacedName: types.NamespacedName{
-					Name: p.Spec.ProjectRef.Name, Namespace: p.Namespace,
-				}}}
-			})).
+		Watches(&rpcv1alpha1.Pipeline{}, handler.EnqueueRequestsFromMapFunc(r.projectsForPipeline)).
 		Named("pipelineproject").
 		Complete(r)
+}
+
+// projectsForPipeline enqueues every PipelineProject in the changed pipeline's
+// namespace. A pipeline change (including clearing or removing projectRef) can
+// invalidate any project's route graph, and the mapper only sees the new object
+// state — so a projectRef→nil transition would be invisible if we keyed off the
+// ref. Listing projects in the namespace keeps route status from going stale.
+func (r *PipelineProjectReconciler) projectsForPipeline(ctx context.Context, obj client.Object) []reconcile.Request {
+	p, ok := obj.(*rpcv1alpha1.Pipeline)
+	if !ok {
+		return nil
+	}
+	var projects rpcv1alpha1.PipelineProjectList
+	if err := r.List(ctx, &projects, client.InNamespace(p.Namespace)); err != nil {
+		return nil
+	}
+	reqs := make([]reconcile.Request, 0, len(projects.Items))
+	for i := range projects.Items {
+		reqs = append(reqs, reconcile.Request{NamespacedName: types.NamespacedName{
+			Name: projects.Items[i].Name, Namespace: projects.Items[i].Namespace,
+		}})
+	}
+	return reqs
 }
