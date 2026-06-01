@@ -1,0 +1,76 @@
+# F50.2 sample: a routed project. ingest fans out to warehouse (all messages)
+# and alert (only high-severity, via a when: predicate). The operator rewrites
+# ingest's output and warehouse/alert's input to NATS JetStream; users only
+# write the non-managed side.
+apiVersion: rpc.operator.io/v1alpha1
+kind: PipelineProject
+metadata:
+  name: orders
+spec:
+  cluster:
+    instances: 1
+  nats:
+    replicas: 1
+    storage: 1Gi
+    retention:
+      maxAge: "24h"
+      maxBytes: "1Gi"
+  routes:
+    - name: fan-out
+      from: ingest
+      to:
+        - pipeline: warehouse
+        - pipeline: alert
+          when: 'this.level == "high"'
+---
+apiVersion: rpc.operator.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: ingest
+spec:
+  projectRef:
+    name: orders
+  # input is user-defined; output is managed by route fan-out.
+  input:
+    type: generate
+    config:
+      mapping: 'root = {"id": uuid_v4(), "level": (if random_int() % 2 == 0 { "high" } else { "low" })}'
+      interval: "1s"
+  processors:
+    - type: log
+      label: emit
+      config:
+        message: 'produced ${! this.id }'
+---
+apiVersion: rpc.operator.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: warehouse
+spec:
+  projectRef:
+    name: orders
+  # input managed by route; output user-defined (sink).
+  processors:
+    - type: log
+      label: warehouse_in
+      config:
+        message: 'warehouse got ${! this.id }'
+  output:
+    type: drop
+    config: {}
+---
+apiVersion: rpc.operator.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: alert
+spec:
+  projectRef:
+    name: orders
+  processors:
+    - type: log
+      label: alert_in
+      config:
+        message: 'ALERT ${! this.id } level=${! this.level }'
+  output:
+    type: drop
+    config: {}

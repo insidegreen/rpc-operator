@@ -42,6 +42,7 @@ import (
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 	"github.com/insidegreen/rpc-operator-claude/internal/api"
 	"github.com/insidegreen/rpc-operator-claude/internal/controller"
+	rpcnats "github.com/insidegreen/rpc-operator-claude/internal/nats"
 	"github.com/insidegreen/rpc-operator-claude/internal/streams"
 	// +kubebuilder:scaffold:imports
 )
@@ -288,6 +289,7 @@ func main() {
 		Client:    mgr.GetClient(),
 		Scheme:    mgr.GetScheme(),
 		NATSImage: natsImage,
+		Streams:   &rpcnats.JSManager{},
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "pipelineproject")
 		os.Exit(1)
