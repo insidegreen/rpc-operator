@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 
 ## F50.2 Pipeline Projects — Routes & I/O Rewriting — 2026-06-01
 
-**Commits:** `481b608`..`4f08e2c`
+**Commits:** `481b608`..`d7059b0`
 
 Wires the Pipelines of a PipelineProject together over NATS JetStream. A
 project's `spec.routes[]` now provisions one JetStream stream per route and the
@@ -12,8 +12,10 @@ operator rewrites the input/output of project-attached Pipelines at render time
 so messages flow `from → to[]` over NATS — users only author the non-managed
 side of each pipeline.
 
-> **Status:** code-complete; build + unit/envtest green. End-to-end verification
-> on the `ds9s3` cluster is still pending.
+> **Status:** ✅ E2E-verified on `ds9s3` (2026-06-01): fan-out delivery confirmed,
+> predicate filtering observed in logs (`alert` stream — only `level=high` messages),
+> cycle + I/O-conflict gates reject and recover, F48 secret substitution intact on
+> a project pipeline, cascade delete with PVC retention verified.
 
 ### Added
 
