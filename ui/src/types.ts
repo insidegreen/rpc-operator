@@ -26,8 +26,9 @@ export interface PipelineSpec {
   stopped?: boolean
   /** F47 Phase 2: run this pipeline as a stream on the named PipelineCluster instead of its own pod. */
   clusterRef?: string
-  /** F50.3: attach this pipeline to a PipelineProject. Mutually exclusive with clusterRef. */
-  projectRef?: string
+  /** F50.3: attach this pipeline to a PipelineProject. Mutually exclusive with clusterRef.
+   *  Mirrors the CRD: an object `{ name }`, not a bare string. */
+  projectRef?: { name: string }
 }
 
 export interface Pipeline {

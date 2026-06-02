@@ -21,7 +21,7 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
   const [secretRefs, setSecretRefs] = useState<SecretRef[]>(editPipeline?.spec.secretRefs ?? [])
   const [clusterRef, setClusterRef] = useState(editPipeline?.spec.clusterRef ?? '')
   const [clusters, setClusters] = useState<PipelineCluster[]>([])
-  const [projectRef, setProjectRef] = useState(editPipeline?.spec.projectRef ?? '')
+  const [projectRef, setProjectRef] = useState(editPipeline?.spec.projectRef?.name ?? '')
   const [projects, setProjects] = useState<PipelineProject[]>([])
   const [renderedYAML, setRenderedYAML] = useState<string>('')
   const [showRendered, setShowRendered] = useState(false)
@@ -35,6 +35,10 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
 
   const selectedProject = projects.find(p => p.metadata.name === projectRef)
   const role = projectRef ? roleOf(selectedProject?.spec.routes ?? [], name) : 'standalone'
+  // Hide project-managed clusters ("<project>-cluster") from "Run on": attaching
+  // to a project happens via the Project dropdown (projectRef), not clusterRef.
+  const projectClusterNames = new Set(projects.map(p => `${p.metadata.name}-cluster`))
+  const selectableClusters = clusters.filter(c => !projectClusterNames.has(c.metadata.name))
   const managedKeys = [
     projectRef && outputManaged(role) ? 'output:' : '',
     projectRef && inputManaged(role) ? 'input:' : '',
@@ -50,7 +54,7 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
     try {
       const spec = {
         rawYAML: text,
-        ...(projectRef ? { projectRef } : (clusterRef ? { clusterRef } : {})),
+        ...(projectRef ? { projectRef: { name: projectRef } } : (clusterRef ? { clusterRef } : {})),
         ...(secretRefs.length > 0 ? { secretRefs } : {}),
       }
       if (editPipeline) {
@@ -95,7 +99,7 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
                   onChange={e => { setClusterRef(e.target.value); if (e.target.value) setProjectRef('') }}
                   style={selectStyle}>
             <option value="">Own pod (default)</option>
-            {clusters.map(c => (
+            {selectableClusters.map(c => (
               <option key={c.metadata.name} value={c.metadata.name}>{c.metadata.name}</option>
             ))}
           </select>
@@ -133,7 +137,7 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: 
             try {
               const yaml = await renderPipelineYAML(namespace, name || 'preview', {
                 rawYAML: text,
-                ...(projectRef ? { projectRef } : {}),
+                ...(projectRef ? { projectRef: { name: projectRef } } : {}),
                 ...(secretRefs.length ? { secretRefs } : {}),
               })
               setRenderedYAML(yaml)

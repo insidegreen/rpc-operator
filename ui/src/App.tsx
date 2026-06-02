@@ -211,13 +211,13 @@ export default function App() {
     if (!visualEditorEnabled) {
       setEditPipeline(undefined)
       setName('my-pipeline')
-      setSpec({ projectRef: projectName, rawYAML: '' })
+      setSpec({ projectRef: { name: projectName }, rawYAML: '' })
       setView('raw-editor')
       setSection('pipelines')
       return
     }
     setName('my-pipeline')
-    setSpec({ ...DEFAULT_SPEC, projectRef: projectName })
+    setSpec({ ...DEFAULT_SPEC, projectRef: { name: projectName } })
     setEditPipeline(undefined)
     setView('editor')
     setSection('pipelines')

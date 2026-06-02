@@ -32,10 +32,16 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
     listProjects(namespace).then(setProjects).catch(() => setProjects([]))
   }, [namespace])
 
-  const selectedProject = projects.find(p => p.metadata.name === spec.projectRef)
+  const selectedProject = projects.find(p => p.metadata.name === spec.projectRef?.name)
   const role = spec.projectRef ? roleOf(selectedProject?.spec.routes ?? [], name) : 'standalone'
   const outManaged = !!spec.projectRef && outputManaged(role)
   const inManaged = !!spec.projectRef && inputManaged(role)
+
+  // A project provisions a managed PipelineCluster named "<project>-cluster";
+  // attaching to a project is done via the Project dropdown (projectRef), not by
+  // selecting that cluster as a plain clusterRef target. Hide it from "Run on".
+  const projectClusterNames = new Set(projects.map(p => `${p.metadata.name}-cluster`))
+  const selectableClusters = clusters.filter(c => !projectClusterNames.has(c.metadata.name))
 
   async function switchToYaml() {
     if (!isRaw && (!spec.input || !spec.output)) {
@@ -100,7 +106,7 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
     } else {
       // Mutually exclusive with clusterRef — drop it.
       const { clusterRef: _drop, ...rest } = spec
-      onChange({ ...rest, projectRef: value })
+      onChange({ ...rest, projectRef: { name: value } })
     }
   }
 
@@ -113,14 +119,14 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
           <select value={spec.clusterRef ?? ''} disabled={!!spec.projectRef}
                   onChange={e => handleClusterChange(e.target.value)} style={selectStyle}>
             <option value="">Own pod (default)</option>
-            {clusters.map(c => (
+            {selectableClusters.map(c => (
               <option key={c.metadata.name} value={c.metadata.name}>{c.metadata.name}</option>
             ))}
           </select>
         </label>
         <label style={{ fontSize: 14 }}>
           Project&nbsp;
-          <select value={spec.projectRef ?? ''} disabled={!!spec.clusterRef}
+          <select value={spec.projectRef?.name ?? ''} disabled={!!spec.clusterRef}
                   onChange={e => handleProjectChange(e.target.value)} style={selectStyle}>
             <option value="">None</option>
             {projects.map(p => (
@@ -154,7 +160,7 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
       {mode === 'visual' && !isRaw && (
         <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
           {inManaged ? (
-            <ManagedSection side="Input" role={role} project={spec.projectRef!} />
+            <ManagedSection side="Input" role={role} project={spec.projectRef!.name} />
           ) : (
             <ComponentBox
               title="Input"
@@ -173,7 +179,7 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
             onChange={setProcessors}
           />
           {outManaged ? (
-            <ManagedSection side="Output" role={role} project={spec.projectRef!} />
+            <ManagedSection side="Output" role={role} project={spec.projectRef!.name} />
           ) : (
             <ComponentBox
               title="Output"
