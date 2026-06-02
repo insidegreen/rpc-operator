@@ -3,6 +3,7 @@ import { Toaster, toast } from 'sonner'
 import {
   listCatalog, getPipeline, listNamespaces, whoami, authConfig,
   stopPipeline, runPipeline, refreshOIDC, oidcLogout, renderPipelineYAML,
+  createProject,
   type WhoamiResponse,
 } from './api'
 import { clearToken, setToken } from './auth'
@@ -17,7 +18,9 @@ import { Sidebar, type Section } from './components/Sidebar'
 import { ClusterList } from './components/ClusterList'
 import { ClusterDetail } from './components/ClusterDetail'
 import { ProjectList } from './components/ProjectList'
-import type { CatalogComponent, Pipeline, PipelineSpec } from './types'
+import { ProjectDetail } from './components/ProjectDetail'
+import { ProjectForm } from './components/ProjectForm'
+import type { CatalogComponent, Pipeline, PipelineSpec, PipelineProjectSpec } from './types'
 
 const DEFAULT_SPEC: PipelineSpec = {
   input: { type: 'generate', config: { mapping: 'root = "hello world"', interval: '1s', count: 5 } },
@@ -34,6 +37,7 @@ export default function App() {
   const [selectedClusterName, setSelectedClusterName] = useState<string>('')
   const [projectsView, setProjectsView] = useState<'list' | 'detail'>('list')
   const [selectedProjectName, setSelectedProjectName] = useState<string>('')
+  const [showProjectForm, setShowProjectForm] = useState(false)
   const [namespace, setNamespace] = useState('rpc-operator-poc')
   const [name, setName] = useState('my-pipeline')
   const [spec, setSpec] = useState<PipelineSpec>(DEFAULT_SPEC)
@@ -191,6 +195,32 @@ export default function App() {
     setSelectedClusterName(clusterName)
     setSection('clusters')
     setClustersView('detail')
+  }
+
+  async function handleCreateProject(projectName: string, projSpec: PipelineProjectSpec) {
+    await createProject(namespace, projectName, projSpec)
+    setShowProjectForm(false)
+    setSelectedProjectName(projectName)
+    setProjectsView('detail')
+    toast.success(`Created project ${projectName}`)
+  }
+
+  // Open the pipeline editor with projectRef pre-filled (Part D consumes spec.projectRef).
+  function handleAddProjectPipeline(projectName: string) {
+    if (readOnly) return
+    if (!visualEditorEnabled) {
+      setEditPipeline(undefined)
+      setName('my-pipeline')
+      setSpec({ projectRef: projectName, rawYAML: '' })
+      setView('raw-editor')
+      setSection('pipelines')
+      return
+    }
+    setName('my-pipeline')
+    setSpec({ ...DEFAULT_SPEC, projectRef: projectName })
+    setEditPipeline(undefined)
+    setView('editor')
+    setSection('pipelines')
   }
 
   // F44: central entry point for "user wants to authenticate".
@@ -423,20 +453,26 @@ export default function App() {
             <ProjectList
               namespace={namespace}
               onViewDetail={name => { setSelectedProjectName(name); setProjectsView('detail') }}
-              onNew={readOnly ? undefined : () => { /* wired in Part C */ }}
+              onNew={readOnly ? undefined : () => setShowProjectForm(true)}
             />
           )}
 
           {section === 'projects' && projectsView === 'detail' && (
-            <div>
-              <button onClick={() => setProjectsView('list')} style={backLinkStyle}>← Back</button>
-              <p style={{ color: '#888', marginTop: 12 }}>
-                Project detail for <strong>{selectedProjectName}</strong> — tactical map coming in Part C.
-              </p>
-            </div>
+            <ProjectDetail
+              namespace={namespace}
+              name={selectedProjectName}
+              readOnly={readOnly}
+              onBack={() => setProjectsView('list')}
+              onOpenPipeline={openPipelineByName}
+              onAddPipeline={handleAddProjectPipeline}
+            />
           )}
         </div>
       </div>
+
+      {showProjectForm && (
+        <ProjectForm onCreate={handleCreateProject} onClose={() => setShowProjectForm(false)} />
+      )}
     </div>
   )
 }
