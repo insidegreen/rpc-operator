@@ -179,6 +179,21 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelineclusters/{name}/metrics",
 		s.authOrAnonymous(s.allowlist(s.handleClusterMetrics)))
 
+	// F50.3: PipelineProject management. Reads anonymous-eligible (F42),
+	// writes token-required — mirrors the pipeline + cluster routes above.
+	mux.HandleFunc("GET /api/v1/pipelineprojects",
+		s.authOrAnonymous(s.handleListAllProjects))
+	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelineprojects",
+		s.authOrAnonymous(s.allowlist(s.handleListNamespacedProjects)))
+	mux.HandleFunc("GET /api/v1/namespaces/{namespace}/pipelineprojects/{name}",
+		s.authOrAnonymous(s.allowlist(s.handleGetProject)))
+	mux.HandleFunc("POST /api/v1/namespaces/{namespace}/pipelineprojects",
+		s.authIfEnabled(s.allowlist(s.handleCreateProject)))
+	mux.HandleFunc("PUT /api/v1/namespaces/{namespace}/pipelineprojects/{name}",
+		s.authIfEnabled(s.allowlist(s.handleUpdateProject)))
+	mux.HandleFunc("DELETE /api/v1/namespaces/{namespace}/pipelineprojects/{name}",
+		s.authIfEnabled(s.allowlist(s.handleDeleteProject)))
+
 	// Spec-only — no K8s touch, no auth, no allowlist. F42 anonymous-read keeps these open.
 	mux.HandleFunc("POST /api/v1/pipelines/validate", s.handleValidate)
 	mux.HandleFunc("POST /api/v1/pipelines/render", s.handleRender)
