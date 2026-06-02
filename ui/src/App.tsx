@@ -16,6 +16,7 @@ import { LoginScreen } from './components/LoginScreen'
 import { Sidebar, type Section } from './components/Sidebar'
 import { ClusterList } from './components/ClusterList'
 import { ClusterDetail } from './components/ClusterDetail'
+import { ProjectList } from './components/ProjectList'
 import type { CatalogComponent, Pipeline, PipelineSpec } from './types'
 
 const DEFAULT_SPEC: PipelineSpec = {
@@ -31,6 +32,8 @@ export default function App() {
   const [section, setSection] = useState<Section>('pipelines')
   const [clustersView, setClustersView] = useState<'list' | 'detail'>('list')
   const [selectedClusterName, setSelectedClusterName] = useState<string>('')
+  const [projectsView, setProjectsView] = useState<'list' | 'detail'>('list')
+  const [selectedProjectName, setSelectedProjectName] = useState<string>('')
   const [namespace, setNamespace] = useState('rpc-operator-poc')
   const [name, setName] = useState('my-pipeline')
   const [spec, setSpec] = useState<PipelineSpec>(DEFAULT_SPEC)
@@ -414,6 +417,23 @@ export default function App() {
               onBack={() => setClustersView('list')}
               onOpenPipeline={openPipelineByName}
             />
+          )}
+
+          {section === 'projects' && projectsView === 'list' && (
+            <ProjectList
+              namespace={namespace}
+              onViewDetail={name => { setSelectedProjectName(name); setProjectsView('detail') }}
+              onNew={readOnly ? undefined : () => { /* wired in Part C */ }}
+            />
+          )}
+
+          {section === 'projects' && projectsView === 'detail' && (
+            <div>
+              <button onClick={() => setProjectsView('list')} style={backLinkStyle}>← Back</button>
+              <p style={{ color: '#888', marginTop: 12 }}>
+                Project detail for <strong>{selectedProjectName}</strong> — tactical map coming in Part C.
+              </p>
+            </div>
           )}
         </div>
       </div>
