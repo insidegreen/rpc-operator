@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getProject, listPipelines, updateProject } from '../api'
-import type { PipelineProject, ProjectRoute } from '../types'
+import type { PipelineProject, ProjectRoute, ProjectRouteStatus } from '../types'
 import { buildTopology, computeLayout, type TopoNode } from '../topology'
 import { TopologyCanvas } from './TopologyCanvas'
 import { RouterDrawer } from './RouterDrawer'
@@ -54,6 +54,10 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
   const topo = computeLayout(buildTopology(project, members))
   const selectedNode = topo.nodes.find(n => n.id === selectedId) ?? null
   const pipelineNames = topo.nodes.filter(n => n.kind === 'pipeline').map(n => n.id)
+  // Surface the operator's verdict: any False status condition is a problem the
+  // user must act on (e.g. RoutesValid=False → fix the offending pipeline's I/O).
+  const problems = (project.status?.conditions ?? []).filter(c => c.status === 'False')
+  const degraded = project.status?.phase === 'Degraded'
 
   async function saveRoute(updated: ProjectRoute) {
     if (!project) return
@@ -95,6 +99,20 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
         )}
       </div>
 
+      {problems.length > 0 && (
+        <div style={degraded ? problemBannerStyle : infoBannerStyle}>
+          <strong>{degraded ? 'Project degraded' : 'Project provisioning'}</strong>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+            {problems.map(c => (
+              <li key={c.type}>
+                <span style={{ fontWeight: 600 }}>{c.type}</span>
+                {c.reason ? ` (${c.reason})` : ''}{c.message ? `: ${c.message}` : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {topo.nodes.length === 0 ? (
@@ -120,6 +138,7 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
             <RouterPanel
               project={name}
               route={routes.find(r => r.name === selectedNode.routeName)!}
+              status={project.status?.routes?.find(rs => rs.name === selectedNode.routeName)}
               readOnly={readOnly}
               onEdit={r => setDrawerRoute(r)}
               onDelete={deleteRoute}
@@ -142,16 +161,21 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
   )
 }
 
-function RouterPanel({ project, route, readOnly, onEdit, onDelete }: {
-  project: string; route: ProjectRoute; readOnly: boolean
+function RouterPanel({ project, route, status, readOnly, onEdit, onDelete }: {
+  project: string; route: ProjectRoute; status?: ProjectRouteStatus; readOnly: boolean
   onEdit: (r: ProjectRoute) => void; onDelete: (name: string) => void
 }) {
+  const failed = (status?.conditions ?? []).filter(c => c.status === 'False')
   return (
     <div style={{ fontSize: 13 }}>
       <h3 style={panelTitleStyle}>Router: {route.name}</h3>
       <Row label="Subject" value={subjectOf(project, route.name)} />
       <Row label="Stream" value={streamOf(project, route.name)} />
+      <Row label="Stream status" value={status?.phase || 'not provisioned'} />
       <Row label="Producer" value={route.from} />
+      {failed.map(c => (
+        <div key={c.type} style={routeProblemStyle}>{c.reason ? `${c.reason}: ` : ''}{c.message}</div>
+      ))}
       <div style={{ marginTop: 10, fontWeight: 600 }}>Targets</div>
       <table style={{ width: '100%', fontSize: 12, marginTop: 4 }}>
         <tbody>
@@ -217,4 +241,16 @@ const toolbarBtnStyle: React.CSSProperties = {
 const deleteBtnStyle: React.CSSProperties = {
   padding: '5px 10px', fontSize: 12, background: '#fff', color: '#dc2626',
   border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer',
+}
+const problemBannerStyle: React.CSSProperties = {
+  background: '#fef2f2', color: '#b91c1c', border: '1px solid #fca5a5',
+  borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16,
+}
+const infoBannerStyle: React.CSSProperties = {
+  background: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d',
+  borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16,
+}
+const routeProblemStyle: React.CSSProperties = {
+  background: '#fef2f2', color: '#b91c1c', border: '1px solid #fca5a5',
+  borderRadius: 6, padding: '6px 8px', fontSize: 12, marginTop: 8,
 }

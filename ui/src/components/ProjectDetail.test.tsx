@@ -29,6 +29,26 @@ describe('ProjectDetail', () => {
     expect(screen.getByText('rpc.orders.fan')).toBeInTheDocument()
   })
 
+  it('surfaces a Degraded project condition as a banner', async () => {
+    const degraded: PipelineProject = {
+      ...orders,
+      status: {
+        phase: 'Degraded',
+        conditions: [
+          { type: 'RoutesValid', status: 'False', reason: 'InvalidRoutes',
+            message: "input is managed by the project's routes; remove it" },
+        ],
+      },
+    }
+    server.use(
+      http.get('/api/v1/namespaces/default/pipelineprojects/orders', () => HttpResponse.json(degraded)),
+    )
+    render(<ProjectDetail namespace="default" name="orders" readOnly={false}
+      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+    await waitFor(() => expect(screen.getByText('Project degraded')).toBeInTheDocument())
+    expect(screen.getByText(/input is managed by the project's routes/i)).toBeInTheDocument()
+  })
+
   it('hides + Router in read-only mode', async () => {
     render(<ProjectDetail namespace="default" name="orders" readOnly={true}
       onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)

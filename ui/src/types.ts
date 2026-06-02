@@ -207,6 +207,13 @@ export interface ProjectRouteStatus {
   subject?: string
   stream?: string
   phase?: string
+  conditions?: Array<{
+    type: string
+    status: string
+    message?: string
+    reason?: string
+    lastTransitionTime?: string
+  }>
 }
 
 export interface PipelineProject {
