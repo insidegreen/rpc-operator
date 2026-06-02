@@ -7,6 +7,10 @@ Kubernetes operator for [Redpanda Connect](https://docs.redpanda.com/redpanda-co
 Data engineers configure pipelines visually or as YAML through an embedded web UI
 and deploy them to a Kubernetes cluster with a single click.
 
+## Online user documentation
+
+https://insidegreen.github.io/rpc-operator/
+
 ## Local Development
 
 ### Prerequisites
