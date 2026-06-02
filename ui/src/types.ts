@@ -26,6 +26,8 @@ export interface PipelineSpec {
   stopped?: boolean
   /** F47 Phase 2: run this pipeline as a stream on the named PipelineCluster instead of its own pod. */
   clusterRef?: string
+  /** F50.3: attach this pipeline to a PipelineProject. Mutually exclusive with clusterRef. */
+  projectRef?: string
 }
 
 export interface Pipeline {
@@ -152,4 +154,82 @@ export interface ClusterDistribution {
   readyReplicas: number
   instances: ClusterInstance[]
   stalePlacements: StalePlacement[]
+}
+
+// Mirrors api/v1alpha1/pipelineproject_types.go
+
+export interface ProjectRouteTarget {
+  pipeline: string
+  /** Optional Bloblang predicate evaluated consumer-side. Empty = always deliver. */
+  when?: string
+}
+
+export interface ProjectRoute {
+  name: string
+  from: string
+  to: ProjectRouteTarget[]
+}
+
+export interface ProjectClusterSpec {
+  instances?: number
+  resources?: object
+}
+
+export interface ProjectNATSRetention {
+  maxAge?: string   // metav1.Duration string e.g. "24h"
+  maxBytes?: string // resource.Quantity string e.g. "1Gi"
+  maxMsgs?: number
+}
+
+export interface ProjectNATSSpec {
+  replicas?: number
+  storage?: string // resource.Quantity e.g. "10Gi"
+  retention?: ProjectNATSRetention
+  storageReclaimPolicy?: 'Retain' | 'Delete'
+}
+
+export interface PipelineProjectSpec {
+  description?: string
+  cluster?: ProjectClusterSpec
+  nats?: ProjectNATSSpec
+  routes?: ProjectRoute[]
+}
+
+export interface ProjectChildStatus {
+  name?: string
+  ready?: number
+  total?: number
+}
+
+export interface ProjectRouteStatus {
+  name: string
+  subject?: string
+  stream?: string
+  phase?: string
+}
+
+export interface PipelineProject {
+  apiVersion?: string
+  kind?: string
+  metadata: {
+    name: string
+    namespace: string
+    resourceVersion?: string
+    creationTimestamp?: string
+  }
+  spec: PipelineProjectSpec
+  status?: {
+    phase?: 'Provisioning' | 'Ready' | 'Degraded' | 'Deleting'
+    cluster?: ProjectChildStatus
+    nats?: ProjectChildStatus
+    routes?: ProjectRouteStatus[]
+    observedGeneration?: number
+    conditions?: Array<{
+      type: string
+      status: string
+      message?: string
+      reason?: string
+      lastTransitionTime?: string
+    }>
+  }
 }
