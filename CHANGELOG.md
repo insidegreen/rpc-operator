@@ -2,6 +2,59 @@
 
 All notable changes to this project are documented here.
 
+## F50.3 Pipeline Projects — UI — 2026-06-02
+
+**Commits:** `5eecf6e`..HEAD (Branch `feat/f50.3-projects-ui`)
+
+Bringt die Pipeline-Projects in die Weboberfläche: ein eigener Projects-Bereich
+mit Listenansicht und einer taktischen Karte, die die `spec.routes[]` als Graph
+aus Pipeline- und Router-Knoten rendert. Router lassen sich per Side-Drawer
+anlegen/bearbeiten, und beide Editoren (Visual + Raw) sind projectRef-fähig.
+
+> **Status:** ✅ Build- und testverifiziert (22 Vitest-Tests grün, `make test`
+> + `go vet` grün). Der manuelle ds9s3-E2E-Click-Through (Projekt anlegen →
+> Pipelines zuordnen → Router verdrahten → Karte prüfen → löschen) steht noch aus.
+
+### Added
+
+- **Projects-Navigation** — neuer Sidebar-Eintrag `Projects` (`FolderTree`-Icon)
+  neben Pipelines und Clusters.
+- **`ProjectList`** — Listenansicht aller PipelineProjects im Namespace mit
+  Phase/Cluster-Status, 15s-Polling und 403→leer-Behandlung (Mode C).
+- **Taktische Karte** (`ProjectDetail` + `TopologyCanvas`) — rendert das
+  Route-Graph als SVG: blaue Pipeline-Rechtecke und bernsteinfarbene
+  Router-Pillen, verbunden über Bezier-Kanten. Layout via reiner, unit-getesteter
+  Kahn-Longest-Path-Schichtung (`topology.ts`) — keine `dagre`-Abhängigkeit.
+  Fan-in erscheint natürlich als zwei Router-Knoten, die in dieselbe Pipeline münden.
+- **Seiten-Panel** — Auswahl eines Knotens zeigt Details: für Router Subject
+  (`rpc.<project>.<route>`), Stream (`rpc-<project>-<route>`), Producer und
+  Targets-Tabelle; für Pipelines die Rolle und ein-/ausgehende Routen.
+- **`RouterDrawer`** — Side-Drawer zum Anlegen/Bearbeiten einer Route
+  (Name DNS-1123-validiert, `from`, mehrere `to[]` mit optionalem Bloblang-`when:`).
+- **`ProjectForm`** — Neues-Projekt-Dialog (Name, Cluster-Instanzen, NATS-Storage).
+- **projectRef-fähige Editoren** — Visual- und Raw-Editor erhalten ein
+  Project-Dropdown (wechselseitig exklusiv zu `clusterRef`), ein Rollen-Badge
+  (standalone/source/middle/sink), Managed-I/O-Banner für die vom Operator
+  injizierten `nats_jetstream`-Blöcke und — im Raw-Editor — einen
+  **Rendered (preview)**-Tab über `renderPipelineYAML`.
+- **Backend-REST-Fläche** — `internal/api/handlers_projects.go`: List/Get/Create/
+  Update/Delete für `pipelineprojects` (Reads mit anonymous-read-Fallback, Writes
+  authentifiziert), gespiegelt nach `handlers_clusters.go`.
+- **Geteilter `projectRole`-Helper** — `roleOf` + `outputManaged`/`inputManaged`,
+  identisch genutzt in beiden Editoren und im Seiten-Panel.
+- **Vitest-Harness** (ADR-0002) — Vitest + React Testing Library + jsdom + MSW,
+  `make ui-test`-Target.
+
+### Notes
+
+- **Live-Edge-Metriken bewusst zurückgestellt** — es existiert keine
+  Pro-Route-NATS-Metrikreihe; die Karte zeigt v1 ohne Durchsatz-Chips pro Kante.
+  Optionen (Producer-Rate-Approximation jetzt bzw. NATS-JetStream-Exporter später)
+  sind im Plan für einen späteren PRP dokumentiert.
+- Die Editoren sind in Mode C nicht erreichbar (`App.handleEdit`/`handleNew`
+  brechen bei `readOnly` früh ab); Schreib-Affordances in Liste, Karte und
+  Seiten-Panel sind durchgängig an `readOnly` gekoppelt.
+
 ## F50.2 Pipeline Projects — Routes & I/O Rewriting — 2026-06-01
 
 **Commits:** `481b608`..`d7059b0`
