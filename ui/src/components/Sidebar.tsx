@@ -1,6 +1,6 @@
-import { Boxes, Workflow } from 'lucide-react'
+import { Boxes, FolderTree, Workflow } from 'lucide-react'
 
-export type Section = 'pipelines' | 'clusters'
+export type Section = 'pipelines' | 'clusters' | 'projects'
 
 interface Props {
   section: Section
@@ -10,6 +10,7 @@ interface Props {
 const items: Array<{ key: Section; label: string; Icon: typeof Workflow }> = [
   { key: 'pipelines', label: 'Pipelines', Icon: Workflow },
   { key: 'clusters', label: 'Clusters', Icon: Boxes },
+  { key: 'projects', label: 'Projects', Icon: FolderTree },
 ]
 
 export function Sidebar({ section, onSelect }: Props) {
