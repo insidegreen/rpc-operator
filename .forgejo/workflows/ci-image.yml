@@ -8,6 +8,7 @@ on:
           Immutable CI image tag to push alongside :latest. Bump on every change
           and update the matching tag referenced in lint.yml / test.yml / docs.yml.
         required: true
+        type: string
         default: '2'
 
 permissions:
