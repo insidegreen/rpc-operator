@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, afterEach, beforeAll, afterAll, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { setupServer } from 'msw/node'
@@ -47,6 +47,28 @@ describe('ProjectDetail', () => {
       onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
     await waitFor(() => expect(screen.getByText('Project degraded')).toBeInTheDocument())
     expect(screen.getByText(/input is managed by the project's routes/i)).toBeInTheDocument()
+  })
+
+  it('stages a router removal locally without deploying', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    let putHit = false
+    server.use(
+      http.put('/api/v1/namespaces/default/pipelineprojects/orders', () => {
+        putHit = true
+        return HttpResponse.json(orders)
+      }),
+    )
+    render(<ProjectDetail namespace="default" name="orders" readOnly={false}
+      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+    await waitFor(() => expect(screen.getByText('fan')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByText('fan'))                  // select router node
+    await userEvent.click(screen.getByRole('button', { name: /Remove from draft/i }))
+
+    // No deploy happened, the draft is dirty, and the node is gone from the map.
+    expect(putHit).toBe(false)
+    expect(screen.getByText(/Unsaved changes/i)).toBeInTheDocument()
+    expect(screen.queryByText('fan')).toBeNull()
   })
 
   it('hides + Router in read-only mode', async () => {

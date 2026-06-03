@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getProject, listPipelines, updateProject } from '../api'
-import type { PipelineProject, ProjectRoute, ProjectRouteStatus } from '../types'
+import { getProject, listPipelines } from '../api'
+import type { PipelineProject, ProjectRoute, ProjectRouteStatus, ValidationError } from '../types'
 import { buildTopology, computeLayout, type TopoNode } from '../topology'
 import { TopologyCanvas } from './TopologyCanvas'
 import { RouterDrawer } from './RouterDrawer'
@@ -25,6 +25,10 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // null = creating a new route, a route = editing, undefined = drawer closed.
   const [drawerRoute, setDrawerRoute] = useState<ProjectRoute | null | undefined>(undefined)
+  const [draftRoutes, setDraftRoutes] = useState<ProjectRoute[]>([])
+  const [dirty, setDirty] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
+  const [saving, setSaving] = useState(false)
 
   const load = useCallback(() => {
     getProject(namespace, name)
@@ -42,6 +46,12 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
     return () => clearInterval(id)
   }, [load])
 
+  // Seed the draft from the server while the user hasn't diverged. While dirty,
+  // the poll still refreshes `project` (status/banner) but never clobbers edits.
+  useEffect(() => {
+    if (project && !dirty) setDraftRoutes(project.spec.routes ?? [])
+  }, [project, dirty])
+
   if (error) return (
     <div>
       <button onClick={onBack} style={backLinkStyle}>← Back</button>
@@ -50,8 +60,9 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
   )
   if (!project) return <p style={{ color: '#888' }}>Loading project…</p>
 
-  const routes = project.spec.routes ?? []
-  const topo = computeLayout(buildTopology(project, members))
+  const serverRoutes = project.spec.routes ?? []
+  const draftProject = { ...project, spec: { ...project.spec, routes: draftRoutes } }
+  const topo = computeLayout(buildTopology(draftProject, members))
   const selectedNode = topo.nodes.find(n => n.id === selectedId) ?? null
   const pipelineNames = topo.nodes.filter(n => n.kind === 'pipeline').map(n => n.id)
   // Surface the operator's verdict: any False status condition is a problem the
@@ -59,30 +70,18 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
   const problems = (project.status?.conditions ?? []).filter(c => c.status === 'False')
   const degraded = project.status?.phase === 'Degraded'
 
-  async function saveRoute(updated: ProjectRoute) {
-    if (!project) return
-    const existing = routes.filter(r => r.name !== updated.name)
-    const nextSpec = { ...project.spec, routes: [...existing, updated] }
-    try {
-      await updateProject(namespace, name, nextSpec, project.metadata.resourceVersion)
-      setDrawerRoute(undefined)
-      load()
-    } catch (e) {
-      setError((e as Error).message)
-    }
+  function stageRoute(updated: ProjectRoute) {
+    const rest = draftRoutes.filter(r => r.name !== updated.name)
+    setDraftRoutes([...rest, updated])
+    setDirty(true)
+    setDrawerRoute(undefined)
   }
 
-  async function deleteRoute(routeName: string) {
-    if (!project) return
-    if (!window.confirm(`Delete router "${routeName}"? Affected pipelines will be re-rendered.`)) return
-    const nextSpec = { ...project.spec, routes: routes.filter(r => r.name !== routeName) }
-    try {
-      await updateProject(namespace, name, nextSpec, project.metadata.resourceVersion)
-      setSelectedId(null)
-      load()
-    } catch (e) {
-      setError((e as Error).message)
-    }
+  function removeRoute(routeName: string) {
+    if (!window.confirm(`Remove router "${routeName}" from the draft?`)) return
+    setDraftRoutes(draftRoutes.filter(r => r.name !== routeName))
+    setDirty(true)
+    setSelectedId(null)
   }
 
   return (
@@ -92,7 +91,8 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
         <h2 style={{ margin: 0, fontSize: 18 }}>{name}</h2>
         <span style={{ fontSize: 13, color: '#888' }}>{project.status?.phase ?? 'Unknown'}</span>
         {!readOnly && (
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+            {dirty && <span style={dirtyPillStyle}>● Unsaved changes</span>}
             <button onClick={() => onAddPipeline(name)} style={toolbarBtnStyle}>+ Pipeline</button>
             <button onClick={() => setDrawerRoute(null)} style={toolbarBtnStyle}>+ Router</button>
           </div>
@@ -121,7 +121,7 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
             </p>
           ) : (
             <>
-              {routes.length === 0 && (
+              {draftRoutes.length === 0 && (
                 <p style={{ color: '#888', fontSize: 13, marginTop: 0 }}>
                   No routes yet. {readOnly ? '' : 'Use “+ Router” to wire these pipelines together.'}
                 </p>
@@ -137,14 +137,15 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
           ) : selectedNode.kind === 'router' ? (
             <RouterPanel
               project={name}
-              route={routes.find(r => r.name === selectedNode.routeName)!}
+              route={draftRoutes.find(r => r.name === selectedNode.routeName)!}
               status={project.status?.routes?.find(rs => rs.name === selectedNode.routeName)}
+              unsaved={!serverRoutes.find(r => r.name === selectedNode.routeName)}
               readOnly={readOnly}
               onEdit={r => setDrawerRoute(r)}
-              onDelete={deleteRoute}
+              onDelete={removeRoute}
             />
           ) : (
-            <PipelinePanel node={selectedNode} routes={routes} onOpen={onOpenPipeline} />
+            <PipelinePanel node={selectedNode} routes={draftRoutes} onOpen={onOpenPipeline} />
           )}
         </aside>
       </div>
@@ -153,7 +154,7 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
         <RouterDrawer
           pipelines={pipelineNames}
           route={drawerRoute ?? undefined}
-          onSave={saveRoute}
+          onSave={stageRoute}
           onClose={() => setDrawerRoute(undefined)}
         />
       )}
@@ -161,9 +162,9 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
   )
 }
 
-function RouterPanel({ project, route, status, readOnly, onEdit, onDelete }: {
-  project: string; route: ProjectRoute; status?: ProjectRouteStatus; readOnly: boolean
-  onEdit: (r: ProjectRoute) => void; onDelete: (name: string) => void
+function RouterPanel({ project, route, status, unsaved, readOnly, onEdit, onDelete }: {
+  project: string; route: ProjectRoute; status?: ProjectRouteStatus; unsaved?: boolean
+  readOnly: boolean; onEdit: (r: ProjectRoute) => void; onDelete: (name: string) => void
 }) {
   const failed = (status?.conditions ?? []).filter(c => c.status === 'False')
   return (
@@ -171,7 +172,7 @@ function RouterPanel({ project, route, status, readOnly, onEdit, onDelete }: {
       <h3 style={panelTitleStyle}>Router: {route.name}</h3>
       <Row label="Subject" value={subjectOf(project, route.name)} />
       <Row label="Stream" value={streamOf(project, route.name)} />
-      <Row label="Stream status" value={status?.phase || 'not provisioned'} />
+      <Row label="Stream status" value={status?.phase || (unsaved ? 'not provisioned (unsaved)' : 'not provisioned')} />
       <Row label="Producer" value={route.from} />
       {failed.map(c => (
         <div key={c.type} style={routeProblemStyle}>{c.reason ? `${c.reason}: ` : ''}{c.message}</div>
@@ -190,7 +191,7 @@ function RouterPanel({ project, route, status, readOnly, onEdit, onDelete }: {
       {!readOnly && (
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
           <button onClick={() => onEdit(route)} style={toolbarBtnStyle}>Edit router</button>
-          <button onClick={() => onDelete(route.name)} style={deleteBtnStyle}>Delete router</button>
+          <button onClick={() => onDelete(route.name)} style={deleteBtnStyle}>Remove from draft</button>
         </div>
       )}
     </div>
@@ -249,6 +250,10 @@ const problemBannerStyle: React.CSSProperties = {
 const infoBannerStyle: React.CSSProperties = {
   background: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d',
   borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 16,
+}
+const dirtyPillStyle: React.CSSProperties = {
+  fontSize: 12, fontWeight: 600, color: '#92400e', background: '#fef3c7',
+  border: '1px solid #fcd34d', borderRadius: 12, padding: '2px 10px',
 }
 const routeProblemStyle: React.CSSProperties = {
   background: '#fef2f2', color: '#b91c1c', border: '1px solid #fca5a5',
