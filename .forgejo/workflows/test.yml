@@ -17,7 +17,7 @@ jobs:
     name: Go Tests
     runs-on: docker
     container:
-      image: forgejo.thecloudroute.com/tom/rpc-operator/ci:latest
+      image: forgejo.thecloudroute.com/tom/rpc-operator/ci:2
 
     steps:
       - name: Checkout

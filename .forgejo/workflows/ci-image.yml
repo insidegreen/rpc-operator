@@ -2,6 +2,13 @@ name: Build CI Image
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: >-
+          Immutable CI image tag to push alongside :latest. Bump on every change
+          and update the matching tag referenced in lint.yml / test.yml / docs.yml.
+        required: true
+        default: '2'
 
 permissions:
   contents: read
@@ -27,4 +34,6 @@ jobs:
           push: true
           credentials: |
             forgejo.thecloudroute.com=${{ github.actor }}:${{ secrets.PUSH_PACKAGE_TOKEN }}
-          destinations: forgejo.thecloudroute.com/tom/rpc-operator/ci:latest
+          destinations: >-
+            forgejo.thecloudroute.com/tom/rpc-operator/ci:latest
+            forgejo.thecloudroute.com/tom/rpc-operator/ci:${{ inputs.version }}
