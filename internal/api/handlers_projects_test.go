@@ -300,3 +300,43 @@ func TestCreateProject_NoRoutesIsValid(t *testing.T) {
 		t.Fatalf("POST: want 201, got %d", resp.StatusCode)
 	}
 }
+
+// The create path validates too: a sink that still declares its own input
+// conflicts with the operator-managed input → 422 and the CR is not created.
+func TestCreateProject_InvalidGraphRejected(t *testing.T) {
+	ns := "default"
+	source := rawPipelineObj(ns, "ingest3", "orders4", "input:\n  generate: {}\npipeline:\n  processors: []\n")
+	sink := rawPipelineObj(ns, "warehouse3", "orders4", "input:\n  generate: {}\npipeline:\n  processors: []\noutput:\n  stdout: {}\n")
+	ts := newTestServer(t, source, sink)
+	defer ts.Close()
+
+	routes := []rpcv1alpha1.ProjectRoute{{
+		Name: "fan", From: "ingest3", To: []rpcv1alpha1.ProjectRouteTarget{{Pipeline: "warehouse3"}},
+	}}
+	resp, err := http.Post(ts.URL+"/api/v1/namespaces/default/pipelineprojects",
+		"application/json", bytes.NewReader(putProjectBody(t, ns, "orders4", routes)))
+	if err != nil {
+		t.Fatalf("POST: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("POST: want 422, got %d", resp.StatusCode)
+	}
+	var body struct {
+		Errors []struct{ Message string } `json:"errors"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if len(body.Errors) == 0 {
+		t.Fatalf("want validation errors, got none")
+	}
+
+	// CR must not have been created.
+	getResp, err := http.Get(ts.URL + "/api/v1/namespaces/default/pipelineprojects/orders4")
+	if err != nil {
+		t.Fatalf("GET after rejected POST: %v", err)
+	}
+	defer func() { _ = getResp.Body.Close() }()
+	if getResp.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET: want 404 (not created), got %d", getResp.StatusCode)
+	}
+}
