@@ -110,6 +110,12 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
     }
   }
 
+  // Session-only draft: leaving the map loses it. Confirm when dirty.
+  function guardLeave(action: () => void) {
+    if (dirty && !window.confirm('You have unsaved route changes that will be lost. Continue?')) return
+    action()
+  }
+
   function discardDraft() {
     if (!project) return
     setDraftRoutes(project.spec.routes ?? [])
@@ -121,7 +127,7 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-        <button onClick={onBack} style={backLinkStyle}>← Back</button>
+        <button onClick={() => guardLeave(onBack)} style={backLinkStyle}>← Back</button>
         <h2 style={{ margin: 0, fontSize: 18 }}>{name}</h2>
         <span style={{ fontSize: 13, color: '#888' }}>{project.status?.phase ?? 'Unknown'}</span>
         {!readOnly && (
@@ -135,7 +141,7 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
             {dirty && (
               <button onClick={discardDraft} disabled={saving} style={toolbarBtnStyle}>Discard</button>
             )}
-            <button onClick={() => onAddPipeline(name)} style={toolbarBtnStyle}>+ Pipeline</button>
+            <button onClick={() => guardLeave(() => onAddPipeline(name))} style={toolbarBtnStyle}>+ Pipeline</button>
             <button onClick={() => setDrawerRoute(null)} style={toolbarBtnStyle}>+ Router</button>
           </div>
         )}
@@ -200,7 +206,7 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
               onDelete={removeRoute}
             />
           ) : (
-            <PipelinePanel node={selectedNode} routes={draftRoutes} onOpen={onOpenPipeline} />
+            <PipelinePanel node={selectedNode} routes={draftRoutes} onOpen={p => guardLeave(() => onOpenPipeline(p))} />
           )}
         </aside>
       </div>

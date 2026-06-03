@@ -153,6 +153,25 @@ describe('ProjectDetail', () => {
     expect(screen.queryByText(/Unsaved changes/i)).toBeNull()
   })
 
+  it('warns before leaving with unsaved changes', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)  // allow the remove
+    const onBack = vi.fn()
+    render(<ProjectDetail namespace="default" name="orders" readOnly={false}
+      onBack={onBack} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+    await waitFor(() => expect(screen.getByText('fan')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByText('fan'))
+    await userEvent.click(screen.getByRole('button', { name: /Remove from draft/i }))
+
+    confirmSpy.mockReturnValue(false)                 // user cancels the leave
+    await userEvent.click(screen.getByRole('button', { name: /← Back/i }))
+    expect(onBack).not.toHaveBeenCalled()
+
+    confirmSpy.mockReturnValue(true)                  // user confirms the leave
+    await userEvent.click(screen.getByRole('button', { name: /← Back/i }))
+    expect(onBack).toHaveBeenCalledTimes(1)
+  })
+
   it('hides + Router in read-only mode', async () => {
     render(<ProjectDetail namespace="default" name="orders" readOnly={true}
       onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
