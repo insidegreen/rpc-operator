@@ -13,8 +13,14 @@ export type BackTarget =
 
 export function pipelineBackTarget(origin: PipelineOrigin): BackTarget {
   switch (origin.kind) {
-    case 'project': return { section: 'projects', projectsView: 'detail' }
-    case 'cluster': return { section: 'clusters', clustersView: 'detail' }
-    default:        return { section: 'pipelines', pipelinesView: 'list' }
+    case 'project':  return { section: 'projects', projectsView: 'detail' }
+    case 'cluster':  return { section: 'clusters', clustersView: 'detail' }
+    case 'pipelines': return { section: 'pipelines', pipelinesView: 'list' }
+    default: {
+      // Exhaustiveness guard: a new PipelineOrigin.kind must be handled above,
+      // not silently fall through to the pipeline list.
+      const _exhaustive: never = origin
+      return _exhaustive
+    }
   }
 }
