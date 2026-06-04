@@ -32,9 +32,10 @@ jobs:
 
       - name: Install MkDocs toolchain
         # PEP 668: the CI image's Python is externally managed (Ubuntu 24.04).
-        # This is a throwaway CI container, so installing into the system env is
-        # fine — keeps docs deps decoupled from the image (no rebuild on bumps).
-        run: pip3 install --break-system-packages --quiet -r requirements-docs.txt
+        # This is a throwaway CI container, so installing into the system env as
+        # root is fine — keeps docs deps decoupled from the image (no rebuild on
+        # bumps). --root-user-action=ignore silences pip's cosmetic root warning.
+        run: pip3 install --break-system-packages --root-user-action=ignore --quiet -r requirements-docs.txt
 
       - name: Build docs (strict)
         run: mkdocs build --strict
