@@ -68,12 +68,20 @@ jobs:
 
       - name: Build & push (Kaniko)
         uses: https://codeberg.org/umglurf/kaniko-action@main
+        # GODEBUG=http2client=0 forces kaniko's registry client onto HTTP/1.1.
+        # Pushing the large `go build` layer over HTTP/2 trips the registry's
+        # reverse proxy, which resets the stream mid-upload
+        # ("stream ID N; PROTOCOL_ERROR; received from peer"). --push-retry
+        # covers any residual transient resets.
+        env:
+          GODEBUG: http2client=0
         with:
           context: .
           docker_file: Dockerfile
           push: true
           cache: true
           cache_repo: ${{ env.IMAGE }}/cache
+          extra_args: --push-retry 5 --image-fs-extract-retry 3
           credentials: |
             forgejo.thecloudroute.com=${{ github.actor }}:${{ secrets.PUSH_PACKAGE_TOKEN }}
           destinations: ${{ steps.tags.outputs.destinations }}
