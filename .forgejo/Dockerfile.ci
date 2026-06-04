@@ -2,18 +2,26 @@
 # Contains all build tools pre-installed so CI runs require no downloads.
 #
 # Build via Forgejo Actions: Trigger workflow "Build CI Image" (workflow_dispatch)
-# and pass the new immutable "version" tag (e.g. 3). It pushes :latest AND :<version>.
+# and pass the new immutable "version" tag (e.g. 3). The workflow builds one
+# native Kaniko image per arch (linux/amd64 + linux/arm64), pushes arch-suffixed
+# source tags :<version>-<arch>, then merges them into a multi-arch manifest list
+# for both :<version> AND :latest (via manifest-tool — no Docker daemon needed).
+# The arch-aware RUN steps below (dpkg --print-architecture) build natively on
+# each runner, so no cross-arch emulation is involved.
+#
 # The CI jobs (lint/test/docs) pin :<version> — NOT :latest — because the runner
 # caches a moving tag and never re-pulls it. So every rebuild MUST bump the version:
 #   1. Bump the version here and in lint.yml / test.yml / docs.yml (currently :3).
 #   2. Run "Build CI Image" with the matching version input.
 #
-# Manual fallback (on the Pi, for linux/arm64) — push both tags:
+# Manual fallback (single-arch only) — build/push on a host of the target arch:
 #   docker build -f .forgejo/Dockerfile.ci \
-#     -t forgejo.thecloudroute.com/tom/rpc-operator/ci:latest \
-#     -t forgejo.thecloudroute.com/tom/rpc-operator/ci:3 .
-#   docker push forgejo.thecloudroute.com/tom/rpc-operator/ci:latest
-#   docker push forgejo.thecloudroute.com/tom/rpc-operator/ci:3
+#     -t forgejo.thecloudroute.com/tom/rpc-operator/ci:3-arm64 .
+#   docker push forgejo.thecloudroute.com/tom/rpc-operator/ci:3-arm64
+#   # repeat on an amd64 host for :3-amd64, then merge with manifest-tool:
+#   manifest-tool push from-args --platforms linux/amd64,linux/arm64 \
+#     --template forgejo.thecloudroute.com/tom/rpc-operator/ci:3-ARCH \
+#     --target   forgejo.thecloudroute.com/tom/rpc-operator/ci:3
 #
 # Rebuild whenever tool versions change (Go, golangci-lint, controller-gen, K8s).
 

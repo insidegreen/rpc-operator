@@ -14,10 +14,23 @@ on:
 permissions:
   contents: read
 
+env:
+  IMAGE: forgejo.thecloudroute.com/tom/rpc-operator/ci
+
 jobs:
-  build-ci-image:
-    name: Build and push CI image
-    runs-on: docker
+  # One native Kaniko build per architecture. Kaniko builds a single platform
+  # per run; the arch-aware RUN steps in Dockerfile.ci (Go/golangci-lint
+  # downloads via `dpkg --print-architecture`) run natively on each runner.
+  # Each job pushes an arch-suffixed source tag (:<version>-<arch>).
+  build:
+    name: Build ${{ matrix.arch }} CI image
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    runs-on:
+      - docker
+      - ${{ matrix.arch }}
     container:
       image: catthehacker/ubuntu:act-latest
 
@@ -27,7 +40,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Build & push (Kaniko)
+      - name: Build & push per-arch (Kaniko)
         uses: https://codeberg.org/umglurf/kaniko-action@main
         with:
           context: .
@@ -35,6 +48,40 @@ jobs:
           push: true
           credentials: |
             forgejo.thecloudroute.com=${{ github.actor }}:${{ secrets.PUSH_PACKAGE_TOKEN }}
-          destinations: >-
-            forgejo.thecloudroute.com/tom/rpc-operator/ci:latest
-            forgejo.thecloudroute.com/tom/rpc-operator/ci:${{ inputs.version }}
+          destinations: ${{ env.IMAGE }}:${{ inputs.version }}-${{ matrix.arch }}
+
+  # Combine the per-arch images into a multi-arch manifest list (:<version> and
+  # :latest). manifest-tool talks directly to the registry, so this stays
+  # daemonless like the Kaniko builds — no Docker daemon / buildx required.
+  manifest:
+    name: Merge multi-arch manifest list
+    needs: build
+    runs-on:
+      - docker
+      - arm64
+    container:
+      image: catthehacker/ubuntu:act-latest
+
+    steps:
+      - name: Install manifest-tool
+        run: |
+          set -euo pipefail
+          ver=v2.2.2
+          arch="$(dpkg --print-architecture)"
+          curl -fsSL "https://github.com/estesp/manifest-tool/releases/download/${ver}/binaries-manifest-tool-${ver#v}.tar.gz" \
+            | tar -xz -C /tmp "manifest-tool-linux-${arch}"
+          install -m0755 "/tmp/manifest-tool-linux-${arch}" /usr/local/bin/manifest-tool
+          manifest-tool --version
+
+      - name: Push manifest lists (:<version> and :latest)
+        run: |
+          set -euo pipefail
+          for target in "${{ inputs.version }}" latest; do
+            manifest-tool \
+              --username "${{ github.actor }}" \
+              --password "${{ secrets.PUSH_PACKAGE_TOKEN }}" \
+              push from-args \
+              --platforms linux/amd64,linux/arm64 \
+              --template "${IMAGE}:${{ inputs.version }}-ARCH" \
+              --target "${IMAGE}:${target}"
+          done
