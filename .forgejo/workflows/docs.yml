@@ -31,7 +31,10 @@ jobs:
           persist-credentials: false
 
       - name: Install MkDocs toolchain
-        run: pip3 install --quiet -r requirements-docs.txt
+        # PEP 668: the CI image's Python is externally managed (Ubuntu 24.04).
+        # This is a throwaway CI container, so installing into the system env is
+        # fine — keeps docs deps decoupled from the image (no rebuild on bumps).
+        run: pip3 install --break-system-packages --quiet -r requirements-docs.txt
 
       - name: Build docs (strict)
         run: mkdocs build --strict
@@ -40,7 +43,7 @@ jobs:
     name: docs-check-reference
     runs-on: docker
     container:
-      image: forgejo.thecloudroute.com/tom/rpc-operator/ci:3
+      image: forgejo.thecloudroute.com/tom/rpc-operator/ci:4
 
     steps:
       - name: Checkout
