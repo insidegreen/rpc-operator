@@ -13,15 +13,18 @@ interface Props {
   editPipeline?: Pipeline
   onBack: () => void
   onSaved: () => void
+  /** Pre-fills the Project dropdown for a NEW pipeline (e.g. created from a
+   *  project). Ignored when editPipeline carries its own projectRef. */
+  initialProjectRef?: string
 }
 
-export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved }: Props) {
+export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved, initialProjectRef }: Props) {
   const [name, setName] = useState(editPipeline?.metadata.name ?? '')
   const [text, setText] = useState(editPipeline?.spec.rawYAML ?? '')
   const [secretRefs, setSecretRefs] = useState<SecretRef[]>(editPipeline?.spec.secretRefs ?? [])
   const [clusterRef, setClusterRef] = useState(editPipeline?.spec.clusterRef ?? '')
   const [clusters, setClusters] = useState<PipelineCluster[]>([])
-  const [projectRef, setProjectRef] = useState(editPipeline?.spec.projectRef?.name ?? '')
+  const [projectRef, setProjectRef] = useState(editPipeline?.spec.projectRef?.name ?? initialProjectRef ?? '')
   const [projects, setProjects] = useState<PipelineProject[]>([])
   const [renderedYAML, setRenderedYAML] = useState<string>('')
   const [showRendered, setShowRendered] = useState(false)
