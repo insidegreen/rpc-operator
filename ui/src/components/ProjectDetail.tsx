@@ -13,20 +13,35 @@ interface Props {
   onOpenPipeline: (pipeline: string) => void
   /** Opens the pipeline editor with projectRef pre-filled. */
   onAddPipeline: (project: string) => void
+  // Optional lifted draft state. App owns these so the draft survives an
+  // excursion to a pipeline detail and back. Omitted (e.g. in component tests)
+  // → ProjectDetail keeps its own local state.
+  draftRoutes?: ProjectRoute[]
+  dirty?: boolean
+  setDraftRoutes?: (routes: ProjectRoute[]) => void
+  setDirty?: (dirty: boolean) => void
 }
 
 const subjectOf = (project: string, route: string) => `rpc.${project}.${route}`
 const streamOf = (project: string, route: string) => `rpc-${project}-${route}`
 
-export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipeline, onAddPipeline }: Props) {
+export function ProjectDetail({
+  namespace, name, readOnly, onBack, onOpenPipeline, onAddPipeline,
+  draftRoutes: draftRoutesProp, dirty: dirtyProp,
+  setDraftRoutes: setDraftRoutesProp, setDirty: setDirtyProp,
+}: Props) {
   const [project, setProject] = useState<PipelineProject>()
   const [members, setMembers] = useState<string[]>([])
   const [error, setError] = useState<string>()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // null = creating a new route, a route = editing, undefined = drawer closed.
   const [drawerRoute, setDrawerRoute] = useState<ProjectRoute | null | undefined>(undefined)
-  const [draftRoutes, setDraftRoutes] = useState<ProjectRoute[]>([])
-  const [dirty, setDirty] = useState(false)
+  const [localDraftRoutes, setLocalDraftRoutes] = useState<ProjectRoute[]>([])
+  const [localDirty, setLocalDirty] = useState(false)
+  const draftRoutes = draftRoutesProp ?? localDraftRoutes
+  const setDraftRoutes = setDraftRoutesProp ?? setLocalDraftRoutes
+  const dirty = dirtyProp ?? localDirty
+  const setDirty = setDirtyProp ?? setLocalDirty
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
   const [saveError, setSaveError] = useState<string | undefined>(undefined)
   const [saving, setSaving] = useState(false)
@@ -206,7 +221,7 @@ export function ProjectDetail({ namespace, name, readOnly, onBack, onOpenPipelin
               onDelete={removeRoute}
             />
           ) : (
-            <PipelinePanel node={selectedNode} routes={draftRoutes} onOpen={p => guardLeave(() => onOpenPipeline(p))} />
+            <PipelinePanel node={selectedNode} routes={draftRoutes} onOpen={onOpenPipeline} />
           )}
         </aside>
       </div>

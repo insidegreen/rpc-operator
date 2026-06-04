@@ -3,8 +3,9 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
+import { useState } from 'react'
 import { ProjectDetail } from './ProjectDetail'
-import type { PipelineProject } from '../types'
+import type { PipelineProject, ProjectRoute } from '../types'
 
 const orders: PipelineProject = {
   metadata: { name: 'orders', namespace: 'default' },
@@ -172,10 +173,70 @@ describe('ProjectDetail', () => {
     expect(onBack).toHaveBeenCalledTimes(1)
   })
 
+  it('opens a pipeline without a discard prompt, even when the draft is dirty', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm')
+    const onOpenPipeline = vi.fn()
+
+    // Controlled dirty draft that still contains the route (so 'ingest' is a node).
+    render(<ProjectDetail namespace="default" name="orders" readOnly={false}
+      onBack={() => {}} onOpenPipeline={onOpenPipeline} onAddPipeline={() => {}}
+      draftRoutes={orders.spec.routes!} dirty={true}
+      setDraftRoutes={() => {}} setDirty={() => {}} />)
+    await waitFor(() => expect(screen.getByText('ingest')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByText('ingest'))                        // select pipeline node
+    await userEvent.click(screen.getByRole('button', { name: /Open pipeline/i }))
+
+    expect(onOpenPipeline).toHaveBeenCalledWith('ingest')
+    expect(confirmSpy).not.toHaveBeenCalled()                               // no discard prompt
+  })
+
   it('hides + Router in read-only mode', async () => {
     render(<ProjectDetail namespace="default" name="orders" readOnly={true}
       onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
     await waitFor(() => expect(screen.getByText('ingest')).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: /\+ Router/i })).toBeNull()
+  })
+
+  it('preserves a dirty draft across an unmount/remount (lifted state)', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+
+    // Mirrors how App owns the draft: the lifted state lives in the parent, so it
+    // survives ProjectDetail being unmounted for a pipeline-detail excursion.
+    function Harness() {
+      const [draftRoutes, setDraftRoutes] = useState<ProjectRoute[]>([])
+      const [dirty, setDirty] = useState(false)
+      const [mounted, setMounted] = useState(true)
+      return (
+        <>
+          <button onClick={() => setMounted(m => !m)}>toggle-mount</button>
+          {mounted ? (
+            <ProjectDetail namespace="default" name="orders" readOnly={false}
+              onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}}
+              draftRoutes={draftRoutes} dirty={dirty}
+              setDraftRoutes={setDraftRoutes} setDirty={setDirty} />
+          ) : <div>excursion</div>}
+        </>
+      )
+    }
+
+    render(<Harness />)
+    await waitFor(() => expect(screen.getByText('fan')).toBeInTheDocument())
+
+    // Edit the draft: remove the 'fan' router.
+    await userEvent.click(screen.getByText('fan'))
+    await userEvent.click(screen.getByRole('button', { name: /Remove from draft/i }))
+    expect(screen.queryByText('fan')).toBeNull()
+    expect(screen.getByText(/Unsaved changes/i)).toBeInTheDocument()
+
+    // Leave to a pipeline detail (unmount), then come back (remount).
+    await userEvent.click(screen.getByRole('button', { name: /toggle-mount/i }))  // unmount
+    expect(screen.getByText('excursion')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /toggle-mount/i }))  // remount
+
+    // Draft survived: 'fan' is still gone and the dirty pill is still shown, even
+    // though the server GET still returns 'fan' (the seed must not clobber a dirty draft).
+    await waitFor(() => expect(screen.getByText(/Unsaved changes/i)).toBeInTheDocument())
+    expect(screen.queryByText('fan')).toBeNull()
   })
 })
