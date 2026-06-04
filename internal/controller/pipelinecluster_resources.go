@@ -83,7 +83,7 @@ func buildClusterStatefulSet(
 	return &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{Name: clusterName},
 		Spec: appsv1.StatefulSetSpec{
-			Replicas:    ptr.To(replicas),
+			Replicas:    new(replicas),
 			ServiceName: svcName,
 			Selector:    &metav1.LabelSelector{MatchLabels: labels},
 			Template: corev1.PodTemplateSpec{
@@ -91,9 +91,9 @@ func buildClusterStatefulSet(
 				Spec: corev1.PodSpec{
 					TerminationGracePeriodSeconds: ptr.To[int64](30),
 					SecurityContext: &corev1.PodSecurityContext{
-						RunAsNonRoot: ptr.To(true),
-						RunAsUser:    ptr.To(rpcUID),
-						FSGroup:      ptr.To(rpcUID),
+						RunAsNonRoot: new(true),
+						RunAsUser:    new(rpcUID),
+						FSGroup:      new(rpcUID),
 						SeccompProfile: &corev1.SeccompProfile{
 							Type: corev1.SeccompProfileTypeRuntimeDefault,
 						},
@@ -124,8 +124,8 @@ func buildClusterStatefulSet(
 							PeriodSeconds:       5,
 						},
 						SecurityContext: &corev1.SecurityContext{
-							AllowPrivilegeEscalation: ptr.To(false),
-							ReadOnlyRootFilesystem:   ptr.To(true),
+							AllowPrivilegeEscalation: new(false),
+							ReadOnlyRootFilesystem:   new(true),
 							Capabilities: &corev1.Capabilities{
 								Drop: []corev1.Capability{"ALL"},
 							},
@@ -166,7 +166,7 @@ func buildClusterPodMonitor(clusterName, namespace string) *monitoringv1.PodMoni
 				MatchLabels: map[string]string{clusterLabelKey: clusterName},
 			},
 			PodMetricsEndpoints: []monitoringv1.PodMetricsEndpoint{{
-				Port:     ptr.To("http"),
+				Port:     new("http"),
 				Path:     "/metrics",
 				Interval: monitoringv1.Duration("15s"),
 			}},

@@ -223,10 +223,11 @@ func (r *PipelineProjectReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		Reason:  "Provisioning",
 		Message: fmt.Sprintf("cluster %d/%d, nats %d/%d", clusterChild.Ready, clusterChild.Total, natsChild.Ready, natsChild.Total),
 	}
-	if phase == rpcv1alpha1.ProjectPhaseReady {
+	switch phase {
+	case rpcv1alpha1.ProjectPhaseReady:
 		desiredCond.Status = metav1.ConditionTrue
 		desiredCond.Reason = "AllReady"
-	} else if phase == rpcv1alpha1.ProjectPhaseDegraded {
+	case rpcv1alpha1.ProjectPhaseDegraded:
 		desiredCond.Reason = "ChildDegraded"
 	}
 

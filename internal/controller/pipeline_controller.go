@@ -28,7 +28,6 @@ import (
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -191,7 +190,7 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 				},
 			},
 			PodMetricsEndpoints: []monitoringv1.PodMetricsEndpoint{{
-				Port:     ptr.To("http"),
+				Port:     new("http"),
 				Path:     "/metrics",
 				Interval: monitoringv1.Duration("15s"),
 			}},

@@ -1,6 +1,7 @@
 package projectroute
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -94,12 +95,7 @@ func msgs(errs []ProjectError) []string {
 }
 
 func hasMsg(errs []ProjectError, want string) bool {
-	for _, m := range msgs(errs) {
-		if m == want {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(msgs(errs), want)
 }
 
 func TestValidateProject_Valid(t *testing.T) {

@@ -186,19 +186,19 @@ func diff(goFields, docHeadings []string, crdName string) string {
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("ERROR: %s CRD reference drift detected:\n", crdName))
+	fmt.Fprintf(&output, "ERROR: %s CRD reference drift detected:\n", crdName)
 
 	if len(missing) > 0 {
 		output.WriteString("  Missing in docs:\n")
 		for _, f := range missing {
-			output.WriteString(fmt.Sprintf("    - %s\n", f))
+			fmt.Fprintf(&output, "    - %s\n", f)
 		}
 	}
 
 	if len(extra) > 0 {
 		output.WriteString("  Extra in docs (not in code):\n")
 		for _, h := range extra {
-			output.WriteString(fmt.Sprintf("    - %s\n", h))
+			fmt.Fprintf(&output, "    - %s\n", h)
 		}
 	}
 

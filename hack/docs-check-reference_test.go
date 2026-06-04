@@ -118,7 +118,7 @@ func extractHeadingsFromMarkdown(markdown string) []string {
 	var headings []string
 	inFieldSection := false
 
-	for _, line := range strings.Split(markdown, "\n") {
+	for line := range strings.SplitSeq(markdown, "\n") {
 		if len(line) == 0 {
 			continue
 		}

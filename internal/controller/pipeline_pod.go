@@ -37,9 +37,9 @@ func buildPodSpec(cmName, image string, envVars []corev1.EnvVar) corev1.PodSpec 
 		RestartPolicy:                 corev1.RestartPolicyOnFailure,
 		TerminationGracePeriodSeconds: ptr.To[int64](30),
 		SecurityContext: &corev1.PodSecurityContext{
-			RunAsNonRoot: ptr.To(true),
-			RunAsUser:    ptr.To(rpcUID),
-			FSGroup:      ptr.To(rpcUID),
+			RunAsNonRoot: new(true),
+			RunAsUser:    new(rpcUID),
+			FSGroup:      new(rpcUID),
 			SeccompProfile: &corev1.SeccompProfile{
 				Type: corev1.SeccompProfileTypeRuntimeDefault,
 			},
@@ -70,8 +70,8 @@ func buildPodSpec(cmName, image string, envVars []corev1.EnvVar) corev1.PodSpec 
 				PeriodSeconds:       5,
 			},
 			SecurityContext: &corev1.SecurityContext{
-				AllowPrivilegeEscalation: ptr.To(false),
-				ReadOnlyRootFilesystem:   ptr.To(true),
+				AllowPrivilegeEscalation: new(false),
+				ReadOnlyRootFilesystem:   new(true),
 				Capabilities: &corev1.Capabilities{
 					Drop: []corev1.Capability{"ALL"},
 				},

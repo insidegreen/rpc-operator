@@ -65,7 +65,7 @@ var _ = Describe("PipelineProject Controller", func() {
 				},
 				NATS: &rpcv1alpha1.ProjectNATSSpec{
 					Replicas: ptr.To[int32](1),
-					Storage:  ptr.To(resource.MustParse("1Gi")),
+					Storage:  new(resource.MustParse("1Gi")),
 				},
 			},
 		}
@@ -279,7 +279,7 @@ var _ = Describe("PipelineProject Controller — PVC reclaim", func() {
 			Spec: rpcv1alpha1.PipelineProjectSpec{
 				NATS: &rpcv1alpha1.ProjectNATSSpec{
 					Replicas:             ptr.To[int32](1),
-					Storage:              ptr.To(resource.MustParse("1Gi")),
+					Storage:              new(resource.MustParse("1Gi")),
 					StorageReclaimPolicy: "Delete",
 				},
 			},

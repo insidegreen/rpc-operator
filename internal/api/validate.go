@@ -46,7 +46,7 @@ func ValidatePipeline(p *rpcv1alpha1.Pipeline, cat *catalog.Catalog) []Validatio
 	}
 
 	var errs []ValidationError
-	if !(p.Spec.ProjectRef != nil && p.Spec.Input.Type == "") {
+	if p.Spec.ProjectRef == nil || p.Spec.Input.Type != "" {
 		errs = append(errs, validateComponent("spec.input", &p.Spec.Input, "inputs", cat)...)
 	}
 	for i := range p.Spec.Processors {
@@ -59,7 +59,7 @@ func ValidatePipeline(p *rpcv1alpha1.Pipeline, cat *catalog.Catalog) []Validatio
 			})
 		}
 	}
-	if !(p.Spec.ProjectRef != nil && p.Spec.Output.Type == "") {
+	if p.Spec.ProjectRef == nil || p.Spec.Output.Type != "" {
 		errs = append(errs, validateComponent("spec.output", &p.Spec.Output, "outputs", cat)...)
 	}
 

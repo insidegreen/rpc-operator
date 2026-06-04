@@ -187,7 +187,7 @@ func buildProjectNATSStatefulSet(
 			Labels: map[string]string{projectLabelKey: projectName},
 		},
 		Spec: appsv1.StatefulSetSpec{
-			Replicas:    ptr.To(replicas),
+			Replicas:    new(replicas),
 			ServiceName: projectChildNATSName(projectName),
 			Selector:    &metav1.LabelSelector{MatchLabels: labels},
 			Template: corev1.PodTemplateSpec{
@@ -195,7 +195,7 @@ func buildProjectNATSStatefulSet(
 				Spec: corev1.PodSpec{
 					TerminationGracePeriodSeconds: ptr.To[int64](30),
 					SecurityContext: &corev1.PodSecurityContext{
-						RunAsNonRoot: ptr.To(true),
+						RunAsNonRoot: new(true),
 						RunAsUser:    ptr.To[int64](1000),
 						FSGroup:      ptr.To[int64](1000),
 						SeccompProfile: &corev1.SeccompProfile{
@@ -234,8 +234,8 @@ func buildProjectNATSStatefulSet(
 							PeriodSeconds:       5,
 						},
 						SecurityContext: &corev1.SecurityContext{
-							AllowPrivilegeEscalation: ptr.To(false),
-							ReadOnlyRootFilesystem:   ptr.To(true),
+							AllowPrivilegeEscalation: new(false),
+							ReadOnlyRootFilesystem:   new(true),
 							Capabilities: &corev1.Capabilities{
 								Drop: []corev1.Capability{"ALL"},
 							},
