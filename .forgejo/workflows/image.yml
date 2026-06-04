@@ -19,7 +19,9 @@ env:
 jobs:
   build-push:
     name: Kaniko build & push to Forgejo registry (linux/amd64)
-    runs-on: docker
+    runs-on:
+      - docker
+      - arm64
     # Alpine runner default container lacks node/bash — use act-compatible image
     container:
       image: catthehacker/ubuntu:act-latest
