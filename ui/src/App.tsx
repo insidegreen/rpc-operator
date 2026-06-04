@@ -181,6 +181,7 @@ export default function App() {
 
   function handleViewDetail(pipeline: Pipeline) {
     setSelectedPipeline(pipeline)
+    setPipelineOrigin({ kind: 'pipelines' })  // opened from the list → Back returns to the list
     setView('detail')
   }
 
