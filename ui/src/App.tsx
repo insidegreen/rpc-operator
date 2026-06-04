@@ -221,6 +221,7 @@ export default function App() {
       setSection('pipelines')
       setView(t.pipelinesView)
     }
+    setEditorOrigin({ kind: 'list' })
   }
 
   // Route the editor's Save: a detail-origin edit returns to the REFRESHED
@@ -233,8 +234,10 @@ export default function App() {
       setSection('projects')
       setProjectsView('detail')
     } else {
+      // detail-origin but selectedPipeline was cleared in the meantime → list.
       setView('list')
     }
+    setEditorOrigin({ kind: 'list' })
   }
 
   function openClusterByName(clusterName: string) {
