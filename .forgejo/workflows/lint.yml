@@ -15,7 +15,9 @@ permissions:
 jobs:
   lint:
     name: golangci-lint
-    runs-on: docker
+    runs-on:
+      - docker
+      - arm64
     container:
       image: forgejo.thecloudroute.com/tom/rpc-operator/ci:3
 
