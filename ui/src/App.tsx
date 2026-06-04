@@ -218,6 +218,7 @@ export default function App() {
     setShowProjectForm(false)
     setSelectedProjectName(projectName)
     setProjectsView('detail')
+    setProjectDraftRoutes([])
     setProjectDirty(false)
     toast.success(`Created project ${projectName}`)
   }
@@ -469,7 +470,7 @@ export default function App() {
           {section === 'projects' && projectsView === 'list' && (
             <ProjectList
               namespace={namespace}
-              onViewDetail={name => { setSelectedProjectName(name); setProjectsView('detail'); setProjectDirty(false) }}
+              onViewDetail={name => { setSelectedProjectName(name); setProjectsView('detail'); setProjectDraftRoutes([]); setProjectDirty(false) }}
               onNew={readOnly ? undefined : () => setShowProjectForm(true)}
             />
           )}
