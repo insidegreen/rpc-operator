@@ -20,7 +20,8 @@ import { ClusterDetail } from './components/ClusterDetail'
 import { ProjectList } from './components/ProjectList'
 import { ProjectDetail } from './components/ProjectDetail'
 import { ProjectForm } from './components/ProjectForm'
-import type { CatalogComponent, Pipeline, PipelineSpec, PipelineProjectSpec } from './types'
+import type { CatalogComponent, Pipeline, PipelineSpec, PipelineProjectSpec, ProjectRoute } from './types'
+import { pipelineBackTarget, type PipelineOrigin } from './pipelineNav'
 
 const DEFAULT_SPEC: PipelineSpec = {
   input: { type: 'generate', config: { mapping: 'root = "hello world"', interval: '1s', count: 5 } },
@@ -38,6 +39,9 @@ export default function App() {
   const [projectsView, setProjectsView] = useState<'list' | 'detail'>('list')
   const [selectedProjectName, setSelectedProjectName] = useState<string>('')
   const [showProjectForm, setShowProjectForm] = useState(false)
+  const [pipelineOrigin, setPipelineOrigin] = useState<PipelineOrigin>({ kind: 'pipelines' })
+  const [projectDraftRoutes, setProjectDraftRoutes] = useState<ProjectRoute[]>([])
+  const [projectDirty, setProjectDirty] = useState(false)
   const [namespace, setNamespace] = useState('rpc-operator-poc')
   const [name, setName] = useState('my-pipeline')
   const [spec, setSpec] = useState<PipelineSpec>(DEFAULT_SPEC)
@@ -180,15 +184,26 @@ export default function App() {
     setView('detail')
   }
 
-  async function openPipelineByName(pipelineName: string) {
+  async function openPipelineByName(pipelineName: string, origin: PipelineOrigin = { kind: 'pipelines' }) {
     try {
       const loaded = await getPipeline(namespace, pipelineName)
       setSelectedPipeline(loaded)
+      setPipelineOrigin(origin)
       setSection('pipelines')
       setView('detail')
     } catch (e) {
       toast.error('Could not open pipeline: ' + (e as Error).message)
     }
+  }
+
+  // Route the pipeline-detail Back button to wherever it was opened from.
+  function backFromPipelineDetail() {
+    const t = pipelineBackTarget(pipelineOrigin)
+    setSection(t.section)
+    if (t.section === 'projects') setProjectsView(t.projectsView)
+    else if (t.section === 'clusters') setClustersView(t.clustersView)
+    else setView(t.pipelinesView)
+    setPipelineOrigin({ kind: 'pipelines' })
   }
 
   function openClusterByName(clusterName: string) {
@@ -202,6 +217,7 @@ export default function App() {
     setShowProjectForm(false)
     setSelectedProjectName(projectName)
     setProjectsView('detail')
+    setProjectDirty(false)
     toast.success(`Created project ${projectName}`)
   }
 
@@ -400,7 +416,7 @@ export default function App() {
                   readOnly={readOnly}
                   showLogs={!me.anonymous || me.anonymousLogs}
                   onEdit={readOnly ? () => {} : () => handleEdit(selectedPipeline)}
-                  onBack={() => setView('list')}
+                  onBack={backFromPipelineDetail}
                   onStop={readOnly ? undefined : handleStop}
                   onRun={readOnly ? undefined : handleRun}
                   onOpenCluster={openClusterByName}
@@ -445,14 +461,14 @@ export default function App() {
               name={selectedClusterName}
               readOnly={readOnly}
               onBack={() => setClustersView('list')}
-              onOpenPipeline={openPipelineByName}
+              onOpenPipeline={p => openPipelineByName(p, { kind: 'cluster', name: selectedClusterName })}
             />
           )}
 
           {section === 'projects' && projectsView === 'list' && (
             <ProjectList
               namespace={namespace}
-              onViewDetail={name => { setSelectedProjectName(name); setProjectsView('detail') }}
+              onViewDetail={name => { setSelectedProjectName(name); setProjectsView('detail'); setProjectDirty(false) }}
               onNew={readOnly ? undefined : () => setShowProjectForm(true)}
             />
           )}
@@ -463,8 +479,12 @@ export default function App() {
               name={selectedProjectName}
               readOnly={readOnly}
               onBack={() => setProjectsView('list')}
-              onOpenPipeline={openPipelineByName}
+              onOpenPipeline={p => openPipelineByName(p, { kind: 'project', name: selectedProjectName })}
               onAddPipeline={handleAddProjectPipeline}
+              draftRoutes={projectDraftRoutes}
+              dirty={projectDirty}
+              setDraftRoutes={setProjectDraftRoutes}
+              setDirty={setProjectDirty}
             />
           )}
         </div>
