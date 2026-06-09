@@ -73,14 +73,21 @@ jobs:
         # reverse proxy, which resets the stream mid-upload
         # ("stream ID N; PROTOCOL_ERROR; received from peer"). --push-retry
         # covers any residual transient resets.
+        #
+        # cache is intentionally OFF: the Dockerfile builds with `go build -a`
+        # (full rebuild every time), so the biggest layer is not cache-reusable
+        # anyway — yet round-tripping it through the flaky registry kept poisoning
+        # the cache repo with truncated blobs, which then failed on extract
+        # ("failed to save layer: unexpected EOF"). Skipping the cache only loses
+        # a few seconds of `npm ci`/`go mod download` and removes that whole
+        # failure mode. --image-fs-extract-retry still guards base-image pulls.
         env:
           GODEBUG: http2client=0
         with:
           context: .
           docker_file: Dockerfile
           push: true
-          cache: true
-          cache_repo: ${{ env.IMAGE }}/cache
+          cache: false
           extra_args: --push-retry 5 --image-fs-extract-retry 3
           credentials: |
             forgejo.thecloudroute.com=${{ github.actor }}:${{ secrets.PUSH_PACKAGE_TOKEN }}
