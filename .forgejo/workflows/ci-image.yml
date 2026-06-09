@@ -42,6 +42,14 @@ jobs:
 
       - name: Build & push per-arch (Kaniko)
         uses: https://codeberg.org/umglurf/kaniko-action@main
+        # GODEBUG=http2client=0 forces kaniko's registry client onto HTTP/1.1.
+        # The Forgejo registry's reverse proxy resets HTTP/2 streams on large
+        # layer transfers — both pushing ("PROTOCOL_ERROR; received from peer")
+        # and pulling/extracting cached layers ("failed to save layer:
+        # unexpected EOF"). --push-retry / --image-fs-extract-retry cover any
+        # residual transient resets. Same fix as image.yml.
+        env:
+          GODEBUG: http2client=0
         with:
           context: .
           docker_file: .forgejo/Dockerfile.ci
@@ -49,6 +57,7 @@ jobs:
           credentials: |
             forgejo.thecloudroute.com=${{ github.actor }}:${{ secrets.PUSH_PACKAGE_TOKEN }}
           destinations: ${{ env.IMAGE }}:${{ inputs.version }}-${{ matrix.arch }}
+          extra_args: --push-retry 5 --image-fs-extract-retry 3
 
   # Combine the per-arch images into a multi-arch manifest list (:<version> and
   # :latest). manifest-tool talks directly to the registry, so this stays
