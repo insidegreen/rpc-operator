@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here.
 
+## Fix — Lastverteilung platziert Projekt-Pipelines wieder verteilt — 2026-06-10
+
+Wird eine projektgebundene Pipeline gestoppt und neu gestartet, landete sie immer
+wieder auf Cluster-Instanz 0 statt — wie erwartet — auf der am wenigsten belasteten
+Instanz. Grund: Der Scheduler ermittelte die Instanz-Belegung (`loadByOrdinal`) über
+`spec.clusterRef`, das bei Projekt-Pipelines (`spec.projectRef`) leer ist. Dadurch
+zählte keine Projekt-Pipeline mit, die Last-Map war stets leer, und bei Gleichstand
+gewann das kleinste Ordinal (0). Das betraf auch die Erstplatzierung — alle
+Projekt-Pipelines wurden auf Instanz 0 gedrängt. (Schwester-Fix zur Cluster-Ansicht
+vom 2026-06-09; selbe `spec.clusterRef`-Blindstelle.)
+
+### Fixed
+
+- **Lastverteilung zählt Projekt-Pipelines mit** — `loadByOrdinal` bestimmt die
+  Belegung nun über die tatsächliche Platzierung (`status.assignedCluster`) statt
+  über `spec.clusterRef`. Damit werden cluster- **und** projektgebundene Pipelines
+  gezählt; neu gestartete Pipelines verteilen sich auf freie Instanzen.
+
 ## Fix — Projekt-Pipelines erscheinen in der Cluster-Ansicht — 2026-06-09
 
 Eine projektgebundene Pipeline (`spec.projectRef`) läuft als Stream auf dem

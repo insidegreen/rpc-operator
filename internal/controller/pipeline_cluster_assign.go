@@ -82,7 +82,9 @@ func isPodReady(p *corev1.Pod) bool {
 }
 
 // loadByOrdinal counts pipelines already placed on each instance of a cluster,
-// by listing pipelines that reference it and reading their status.assignedInstance.
+// keyed by their actual placement (status.assignedCluster/assignedInstance).
+// Placement, not spec, is the source of truth so that both clusterRef and
+// projectRef pipelines (the latter carry no spec.clusterRef) are counted.
 func (r *PipelineReconciler) loadByOrdinal(ctx context.Context, clusterName, namespace, excludePipeline string) (map[int32]int, error) {
 	var pipes rpcv1alpha1.PipelineList
 	if err := r.List(ctx, &pipes, client.InNamespace(namespace)); err != nil {
@@ -91,7 +93,7 @@ func (r *PipelineReconciler) loadByOrdinal(ctx context.Context, clusterName, nam
 	load := map[int32]int{}
 	for i := range pipes.Items {
 		p := &pipes.Items[i]
-		if p.Name == excludePipeline || p.Spec.ClusterRef != clusterName || p.Status.AssignedInstance == "" {
+		if p.Name == excludePipeline || p.Status.AssignedCluster != clusterName || p.Status.AssignedInstance == "" {
 			continue
 		}
 		if o, ok := ordinalFromPodName(p.Status.AssignedInstance, clusterName); ok {

@@ -94,6 +94,29 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(k8sClient.Get(ctx, nn, pod)).To(HaveOccurred())
 	})
 
+	It("counts projectRef pipelines toward instance load by their placement", func() {
+		const cluster = "loadproj-cluster"
+		// A project-member pipeline carries spec.projectRef (not spec.clusterRef)
+		// but is placed onto the project's managed cluster via status. Load
+		// balancing must count it so the next pipeline avoids the same instance.
+		member := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "loadproj-member-0", Namespace: namespace},
+			Spec: rpcv1alpha1.PipelineSpec{
+				ProjectRef: &rpcv1alpha1.ProjectRef{Name: "loadproj"},
+				Input:      rpcv1alpha1.ComponentSpec{Type: "generate"},
+				Output:     rpcv1alpha1.ComponentSpec{Type: "drop"},
+			},
+		}
+		Expect(k8sClient.Create(ctx, member)).To(Succeed())
+		member.Status.AssignedCluster = cluster
+		member.Status.AssignedInstance = cluster + "-0"
+		Expect(k8sClient.Status().Update(ctx, member)).To(Succeed())
+
+		load, err := reconciler.loadByOrdinal(ctx, cluster, namespace, "someother")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(load[0]).To(Equal(1))
+	})
+
 	It("deploys a cluster pipeline with SecretRefs, substituting the secret value", func() {
 		cluster := &rpcv1alpha1.PipelineCluster{
 			ObjectMeta: metav1.ObjectMeta{Name: "cs1", Namespace: namespace},
