@@ -107,7 +107,7 @@ func (f *FakeClient) GetStreamStatus(_ context.Context, podBaseURL, streamID str
 	if f.inactive[streamID] {
 		return StreamStatus{Active: false}, nil
 	}
-	return StreamStatus{Active: true, Uptime: 1}, nil
+	return StreamStatus{Active: true, Uptime: 1}, nil // uptime arbitrary; consumers/tests assert Active only
 }
 
 // SetStreamActive marks whether a stream id reports Active in GetStreamStatus (test helper).

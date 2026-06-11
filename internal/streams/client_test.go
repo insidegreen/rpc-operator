@@ -206,3 +206,15 @@ func TestHTTPClient_GetStreamStatus_500IsError(t *testing.T) {
 		t.Errorf("expected a non-NotFound error on 500, got %v", err)
 	}
 }
+
+func TestHTTPClient_GetStreamStatus_MalformedBodyIsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`not-json`))
+	}))
+	defer srv.Close()
+	c := NewHTTPClient()
+	_, err := c.GetStreamStatus(context.Background(), srv.URL, "x")
+	if err == nil {
+		t.Error("expected error on malformed body")
+	}
+}
