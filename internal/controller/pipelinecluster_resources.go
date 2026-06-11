@@ -115,9 +115,16 @@ func buildClusterStatefulSet(
 							InitialDelaySeconds: 5,
 							PeriodSeconds:       10,
 						},
+						// Readiness tracks "management API is reachable" (/ping), NOT
+						// per-stream connectivity. RPC's /ready is pod-global: in streams
+						// mode it is 200 only when EVERY stream is connected, so one stream
+						// that cannot reach its external I/O would flip the whole pod to
+						// NotReady and trigger a poison-stream migration cascade across the
+						// cluster. Do not change this back to /ready.
+						// See docs/superpowers/specs/2026-06-11-cluster-poison-stream-cascade-design.md
 						ReadinessProbe: &corev1.Probe{
 							ProbeHandler: corev1.ProbeHandler{HTTPGet: &corev1.HTTPGetAction{
-								Path: "/ready",
+								Path: "/ping",
 								Port: intstr.FromString("http"),
 							}},
 							InitialDelaySeconds: 2,

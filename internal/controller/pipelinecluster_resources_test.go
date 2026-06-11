@@ -88,8 +88,11 @@ func TestBuildClusterStatefulSet(t *testing.T) {
 	if len(c.Args) != 3 || c.Args[0] != wantArgs[0] || c.Args[1] != wantArgs[1] || c.Args[2] != wantArgs[2] {
 		t.Errorf("expected args %v, got %v", wantArgs, c.Args)
 	}
-	if c.ReadinessProbe == nil || c.ReadinessProbe.HTTPGet.Path != "/ready" {
-		t.Errorf("expected readiness probe on /ready")
+	if c.ReadinessProbe == nil || c.ReadinessProbe.HTTPGet.Path != "/ping" {
+		t.Errorf("expected readiness probe on /ping (API reachability, not per-stream connectivity)")
+	}
+	if c.LivenessProbe == nil || c.LivenessProbe.HTTPGet.Path != "/ping" {
+		t.Errorf("expected liveness probe on /ping")
 	}
 	if c.SecurityContext == nil || c.SecurityContext.ReadOnlyRootFilesystem == nil || !*c.SecurityContext.ReadOnlyRootFilesystem {
 		t.Errorf("expected ReadOnlyRootFilesystem=true")
