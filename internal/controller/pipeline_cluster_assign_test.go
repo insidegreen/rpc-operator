@@ -673,6 +673,63 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(apimeta.FindStatusCondition(p.Status.Conditions, "StreamActive")).To(BeNil())
 	})
 
+	It("removes StreamActive when the pipeline is stopped (handleStopped)", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "cstop", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "cstop", 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p-then-stop", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "cstop", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := assign("p-then-stop")
+		var p rpcv1alpha1.Pipeline
+		Expect(k8sClient.Get(ctx, nn, &p)).To(Succeed())
+		Expect(apimeta.FindStatusCondition(p.Status.Conditions, "StreamActive")).NotTo(BeNil())
+
+		p.Spec.Stopped = true
+		Expect(k8sClient.Update(ctx, &p)).To(Succeed())
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(k8sClient.Get(ctx, nn, &p)).To(Succeed())
+		Expect(p.Status.Phase).To(Equal(rpcv1alpha1.PhaseStopped))
+		Expect(apimeta.FindStatusCondition(p.Status.Conditions, "StreamActive")).To(BeNil())
+	})
+
+	It("removes StreamActive when clusterRef is cleared (handleClusterFallback)", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "cfb", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "cfb", 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p-then-fallback", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "cfb", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := assign("p-then-fallback")
+		var p rpcv1alpha1.Pipeline
+		Expect(k8sClient.Get(ctx, nn, &p)).To(Succeed())
+		Expect(apimeta.FindStatusCondition(p.Status.Conditions, "StreamActive")).NotTo(BeNil())
+
+		p.Spec.ClusterRef = "" // string field, not a pointer — empty clears the ref
+		Expect(k8sClient.Update(ctx, &p)).To(Succeed())
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(k8sClient.Get(ctx, nn, &p)).To(Succeed())
+		Expect(apimeta.FindStatusCondition(p.Status.Conditions, "StreamActive")).To(BeNil())
+	})
+
 	AfterEach(func() {
 		pipes := &rpcv1alpha1.PipelineList{}
 		Expect(k8sClient.List(ctx, pipes, client.InNamespace(namespace))).To(Succeed())

@@ -359,7 +359,9 @@ func (r *PipelineReconciler) handleStopped(
 		existingCond.Status != desiredCond.Status ||
 		existingCond.Reason != desiredCond.Reason
 
-	if condChanged ||
+	hadStreamActive := apimeta.FindStatusCondition(pipe.Status.Conditions, condStreamActive) != nil
+
+	if condChanged || hadStreamActive ||
 		pipe.Status.Phase != rpcv1alpha1.PhaseStopped ||
 		pipe.Status.PodName != "" ||
 		pipe.Status.AssignedCluster != "" ||
@@ -373,6 +375,7 @@ func (r *PipelineReconciler) handleStopped(
 		pipe.Status.StreamID = ""
 		pipe.Status.ObservedGeneration = pipe.Generation
 		apimeta.SetStatusCondition(&pipe.Status.Conditions, desiredCond)
+		apimeta.RemoveStatusCondition(&pipe.Status.Conditions, condStreamActive)
 		if err := r.Status().Update(ctx, pipe); err != nil {
 			if apierrors.IsConflict(err) {
 				return ctrl.Result{Requeue: true}, nil

@@ -41,6 +41,9 @@ import (
 // retries once its cluster becomes ready. F47 Phase 2b.
 const resyncInterval = 2 * time.Minute
 
+// condStreamActive is the condition type carrying a stream's live runnable health (D2/D5).
+const condStreamActive = "StreamActive"
+
 // clusterPodURL builds the streams-API base URL for one cluster instance via the
 // headless service DNS (<pod>.<svc>.<ns>.svc:httpPort). svc name == cluster name.
 func clusterPodURL(clusterName, namespace string, ordinal int32) string {
@@ -216,6 +219,7 @@ func (r *PipelineReconciler) handleClusterFallback(ctx context.Context, pipe *rp
 	pipe.Status.AssignedCluster = ""
 	pipe.Status.AssignedInstance = ""
 	pipe.Status.StreamID = ""
+	apimeta.RemoveStatusCondition(&pipe.Status.Conditions, condStreamActive)
 	if err := r.Status().Update(ctx, pipe); err != nil {
 		if apierrors.IsConflict(err) {
 			return ctrl.Result{Requeue: true}, nil
@@ -279,13 +283,13 @@ func (r *PipelineReconciler) streamActiveCondition(ctx context.Context, podURL, 
 	st, err := r.Streams.GetStreamStatus(ctx, podURL, streamID)
 	switch {
 	case errors.Is(err, streams.ErrStreamNotFound):
-		return metav1.Condition{Type: "StreamActive", Status: metav1.ConditionFalse, Reason: "StreamMissing", Message: "stream not found on instance"}
+		return metav1.Condition{Type: condStreamActive, Status: metav1.ConditionFalse, Reason: "StreamMissing", Message: "stream not found on instance"}
 	case err != nil:
-		return metav1.Condition{Type: "StreamActive", Status: metav1.ConditionUnknown, Reason: "StatusUnavailable", Message: err.Error()}
+		return metav1.Condition{Type: condStreamActive, Status: metav1.ConditionUnknown, Reason: "StatusUnavailable", Message: err.Error()}
 	case st.Active:
-		return metav1.Condition{Type: "StreamActive", Status: metav1.ConditionTrue, Reason: "Running", Message: "stream active"}
+		return metav1.Condition{Type: condStreamActive, Status: metav1.ConditionTrue, Reason: "Running", Message: "stream active"}
 	default:
-		return metav1.Condition{Type: "StreamActive", Status: metav1.ConditionFalse, Reason: "StreamNotActive", Message: "stream not active"}
+		return metav1.Condition{Type: condStreamActive, Status: metav1.ConditionFalse, Reason: "StreamNotActive", Message: "stream not active"}
 	}
 }
 
@@ -300,7 +304,7 @@ func (r *PipelineReconciler) writeClusterStatus(
 	existing := apimeta.FindStatusCondition(pipe.Status.Conditions, "Ready")
 	condChanged := existing == nil || existing.Status != cond.Status || existing.Reason != cond.Reason || existing.Message != cond.Message
 
-	existingSA := apimeta.FindStatusCondition(pipe.Status.Conditions, "StreamActive")
+	existingSA := apimeta.FindStatusCondition(pipe.Status.Conditions, condStreamActive)
 	var saChanged bool
 	if streamActive == nil {
 		saChanged = existingSA != nil // removal only needed when present
@@ -324,7 +328,7 @@ func (r *PipelineReconciler) writeClusterStatus(
 		pipe.Status.ObservedGeneration = pipe.Generation
 		apimeta.SetStatusCondition(&pipe.Status.Conditions, cond)
 		if streamActive == nil {
-			apimeta.RemoveStatusCondition(&pipe.Status.Conditions, "StreamActive")
+			apimeta.RemoveStatusCondition(&pipe.Status.Conditions, condStreamActive)
 		} else {
 			apimeta.SetStatusCondition(&pipe.Status.Conditions, *streamActive)
 		}
