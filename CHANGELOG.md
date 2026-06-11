@@ -2,6 +2,28 @@
 
 All notable changes to this project are documented here.
 
+## Feature — Pipeline-Runnable-Health (`StreamActive`) — 2026-06-11
+
+Cluster-/Stream-Pipelines melden jetzt den realen `active`-Status ihres Streams
+(gelesen via `GET /streams/{id}` der Streams-API) als separate `StreamActive`-Condition.
+Das ersetzt das implizite „Ready, weil `EnsureStream` 2xx zurückgab" durch ein Signal,
+das den tatsächlichen Lauf-Zustand des Streams abbildet — der Ersatz für das bewusst
+aufgegebene pod-globale `/ready` (siehe Poison-Stream-Kaskaden-Fix).
+
+### Added
+
+- **`StreamActive`-Condition** — `Ready`/`Phase` bleiben unverändert; die Condition trägt
+  das Live-Signal: `True/Running` (aktiv), `False/StreamNotActive` (platziert, aber nicht
+  aktiv), `False/StreamMissing` (Stream verschwunden) bzw. `Unknown/StatusUnavailable`
+  (Status nicht lesbar — Platzierung bleibt bestehen).
+- **Presence-Regel** — die Condition existiert genau dann, wenn die Pipeline eine
+  Platzierung hält: gesetzt in `handleClusterAssigned`, entfernt in allen
+  Unplacement-Pfaden (Stop/Pending/Failed/Fallback). Im Own-Pod-Modus wird sie nie gesetzt
+  (dort ist Pod-Phase die Health-Quelle).
+- **Bekannte Grenze (akzeptiert):** `active` bedeutet „lauffähig", nicht „verbunden" — eine
+  fehlerhafte Output-URL hält `active == true`. Erreichbarkeit externer Dienste ist Teil 2
+  (UI-only) und kein Pod-Readiness-/Reschedule-Signal.
+
 ## Fix — Einzelne fehlerhafte Cluster-Pipeline macht PipelineCluster nicht mehr ungesund — 2026-06-11
 
 Eine einzelne Cluster-Pipeline mit ungültigem Ziel (z. B. unerreichbare Output-URL)
