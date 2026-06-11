@@ -15,6 +15,7 @@ package streams
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -37,6 +38,17 @@ func (e *ConfigRejectedError) Error() string {
 	return fmt.Sprintf("ensure stream %s: status %d: %s", e.StreamID, e.Status, e.Body)
 }
 
+// ErrStreamNotFound is returned by GetStreamStatus when the instance reports the
+// stream does not exist (HTTP 404). Callers use it to distinguish a vanished
+// stream from a transport/5xx failure.
+var ErrStreamNotFound = errors.New("stream not found")
+
+// StreamStatus is the subset of GET /streams/{id} the operator consumes.
+type StreamStatus struct {
+	Active bool
+	Uptime float64 // seconds; from the "uptime" field
+}
+
 // Client manages streams on a single Redpanda Connect instance addressed by its
 // base URL (e.g. http://etl-small-1.etl-small.ns.svc:4195).
 type Client interface {
@@ -46,6 +58,9 @@ type Client interface {
 	DeleteStream(ctx context.Context, podBaseURL, streamID string) error
 	// ListStreams returns the set of stream ids currently running on the instance.
 	ListStreams(ctx context.Context, podBaseURL string) (map[string]struct{}, error)
+	// GetStreamStatus reads one stream's runtime status. A 404 returns
+	// (StreamStatus{}, ErrStreamNotFound); other non-2xx returns a plain error.
+	GetStreamStatus(ctx context.Context, podBaseURL, streamID string) (StreamStatus, error)
 }
 
 // HTTPClient is the production Client over HTTP.
@@ -149,4 +164,33 @@ func (c *HTTPClient) ListStreams(ctx context.Context, podBaseURL string) (map[st
 		out[id] = struct{}{}
 	}
 	return out, nil
+}
+
+func (c *HTTPClient) GetStreamStatus(ctx context.Context, podBaseURL, streamID string) (StreamStatus, error) {
+	url := fmt.Sprintf("%s/streams/%s", strings.TrimRight(podBaseURL, "/"), streamID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return StreamStatus{}, err
+	}
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return StreamStatus{}, fmt.Errorf("GET stream %s: %w", streamID, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusNotFound {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return StreamStatus{}, ErrStreamNotFound
+	}
+	if resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return StreamStatus{}, fmt.Errorf("GET stream %s: status %d: %s", streamID, resp.StatusCode, string(body))
+	}
+	var raw struct {
+		Active bool    `json:"active"`
+		Uptime float64 `json:"uptime"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return StreamStatus{}, fmt.Errorf("decode stream %s status: %w", streamID, err)
+	}
+	return StreamStatus{Active: raw.Active, Uptime: raw.Uptime}, nil
 }

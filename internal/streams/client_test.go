@@ -158,3 +158,51 @@ func TestHTTPClient_ListStreams(t *testing.T) {
 		t.Errorf("expected 2 streams, got %d", len(got))
 	}
 }
+
+func TestHTTPClient_GetStreamStatus_ParsesActiveAndUptime(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/streams/mypipe" {
+			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		_, _ = w.Write([]byte(`{"active":true,"uptime":12.5,"uptime_str":"12.5s"}`))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient()
+	st, err := c.GetStreamStatus(context.Background(), srv.URL, "mypipe")
+	if err != nil {
+		t.Fatalf("GetStreamStatus: %v", err)
+	}
+	if !st.Active {
+		t.Errorf("expected Active=true, got %+v", st)
+	}
+	if st.Uptime != 12.5 {
+		t.Errorf("expected Uptime=12.5, got %v", st.Uptime)
+	}
+}
+
+func TestHTTPClient_GetStreamStatus_404IsErrStreamNotFound(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient()
+	_, err := c.GetStreamStatus(context.Background(), srv.URL, "gone")
+	if !errors.Is(err, ErrStreamNotFound) {
+		t.Errorf("expected ErrStreamNotFound, got %v", err)
+	}
+}
+
+func TestHTTPClient_GetStreamStatus_500IsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient()
+	_, err := c.GetStreamStatus(context.Background(), srv.URL, "x")
+	if err == nil || errors.Is(err, ErrStreamNotFound) {
+		t.Errorf("expected a non-NotFound error on 500, got %v", err)
+	}
+}
