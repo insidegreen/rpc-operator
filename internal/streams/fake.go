@@ -24,13 +24,19 @@ type FakeClient struct {
 	// the stream — lets tests simulate a streams-API rejection (e.g. a 400 lint
 	// error via a *ConfigRejectedError).
 	EnsureErr error
+	// GetErr, when non-nil, is returned by GetStreamStatus instead of a status.
+	// Set it to ErrStreamNotFound to model a vanished stream, or any other error
+	// to model a transport/5xx read failure.
+	GetErr error
+	// inactive marks stream ids that are held but report Active:false.
+	inactive map[string]bool
 }
 
 var _ Client = (*FakeClient)(nil)
 
 // NewFakeClient returns an empty FakeClient.
 func NewFakeClient() *FakeClient {
-	return &FakeClient{streams: map[string]map[string]string{}}
+	return &FakeClient{streams: map[string]map[string]string{}, inactive: map[string]bool{}}
 }
 
 func (f *FakeClient) EnsureStream(_ context.Context, podBaseURL, streamID, configYAML string) error {
@@ -84,4 +90,29 @@ func (f *FakeClient) StreamBody(podBaseURL, streamID string) string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.streams[podBaseURL][streamID]
+}
+
+// GetStreamStatus reports a held stream as Active:true unless marked inactive via
+// SetStreamActive. A stream not held on the pod returns ErrStreamNotFound. GetErr,
+// if set, is returned instead.
+func (f *FakeClient) GetStreamStatus(_ context.Context, podBaseURL, streamID string) (StreamStatus, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.GetErr != nil {
+		return StreamStatus{}, f.GetErr
+	}
+	if _, ok := f.streams[podBaseURL][streamID]; !ok {
+		return StreamStatus{}, ErrStreamNotFound
+	}
+	if f.inactive[streamID] {
+		return StreamStatus{Active: false}, nil
+	}
+	return StreamStatus{Active: true, Uptime: 1}, nil
+}
+
+// SetStreamActive marks whether a stream id reports Active in GetStreamStatus (test helper).
+func (f *FakeClient) SetStreamActive(streamID string, active bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.inactive[streamID] = !active
 }
