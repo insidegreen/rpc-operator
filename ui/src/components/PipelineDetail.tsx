@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Pipeline } from '../types'
+import type { ConnectionsResponse, Pipeline } from '../types'
 import { getToken } from '../auth'
-import { getMetrics } from '../api'
+import { getConnections, getMetrics } from '../api'
+import { ConnectionLights } from './ConnectionLights'
 import { MetricsGraph } from './MetricsGraph'
 
 interface Props {
@@ -58,6 +59,23 @@ export function PipelineDetail({
     setPaused(p => !p)
   }
 
+  const [connections, setConnections] = useState<ConnectionsResponse | undefined>()
+
+  useEffect(() => {
+    if (pipeline.status?.phase !== 'Running') {
+      setConnections(undefined)
+      return
+    }
+    function poll() {
+      getConnections(pipeline.metadata.namespace, pipeline.metadata.name)
+        .then(setConnections)
+        .catch(() => setConnections(undefined))
+    }
+    poll()
+    const id = setInterval(poll, 15_000)
+    return () => clearInterval(id)
+  }, [pipeline.metadata.namespace, pipeline.metadata.name, pipeline.status?.phase])
+
   const p = pipeline
   return (
     <div>
@@ -82,30 +100,40 @@ export function PipelineDetail({
 
       {/* Metadata */}
       <div style={sectionStyle}>
-        {p.status?.assignedInstance ? (
-          <div style={metaRowStyle}>
-            <span style={metaLabelStyle}>Placement</span>
-            <span style={{ fontSize: 13 }}>
-              Cluster:{' '}
-              {onOpenCluster && p.status.assignedCluster ? (
-                <button onClick={() => onOpenCluster!(p.status!.assignedCluster!)} style={linkBtnStyle}>
-                  {p.status.assignedCluster}
-                </button>
-              ) : (
-                <code style={{ fontSize: 12 }}>{p.status.assignedCluster ?? '—'}</code>
-              )}
-              {' · '}Instance: <code style={{ fontSize: 12 }}>{p.status.assignedInstance}</code>
-            </span>
+        <div style={{ display: 'flex', gap: 32 }}>
+          <div style={{ flex: 1 }}>
+            {p.status?.assignedInstance ? (
+              <div style={metaRowStyle}>
+                <span style={metaLabelStyle}>Placement</span>
+                <span style={{ fontSize: 13 }}>
+                  Cluster:{' '}
+                  {onOpenCluster && p.status.assignedCluster ? (
+                    <button onClick={() => onOpenCluster!(p.status!.assignedCluster!)} style={linkBtnStyle}>
+                      {p.status.assignedCluster}
+                    </button>
+                  ) : (
+                    <code style={{ fontSize: 12 }}>{p.status.assignedCluster ?? '—'}</code>
+                  )}
+                  {' · '}Instance: <code style={{ fontSize: 12 }}>{p.status.assignedInstance}</code>
+                </span>
+              </div>
+            ) : (
+              <div style={metaRowStyle}>
+                <span style={metaLabelStyle}>Pod</span>
+                <code style={{ fontSize: 12 }}>{p.status?.podName ?? '—'}</code>
+              </div>
+            )}
+            <div style={metaRowStyle}>
+              <span style={metaLabelStyle}>Phase</span>
+              <span>{p.status?.phase ?? '—'}</span>
+            </div>
           </div>
-        ) : (
-          <div style={metaRowStyle}>
-            <span style={metaLabelStyle}>Pod</span>
-            <code style={{ fontSize: 12 }}>{p.status?.podName ?? '—'}</code>
-          </div>
-        )}
-        <div style={metaRowStyle}>
-          <span style={metaLabelStyle}>Phase</span>
-          <span>{p.status?.phase ?? '—'}</span>
+          {p.status?.phase === 'Running' && (
+            <div>
+              <div style={{ ...metaLabelStyle, marginBottom: 4 }}>Connections</div>
+              <ConnectionLights state={connections} />
+            </div>
+          )}
         </div>
       </div>
 
