@@ -39,14 +39,14 @@ type InstantSample struct {
 // stream="" → pod-only filter (own-pod mode); stream!="" → pod+stream (cluster mode).
 func buildConnectionQuery(metric, pod, stream string) string {
 	if stream == "" {
-		return fmt.Sprintf(`max(rate(%s{pod=%q}[2m]))`, metric, pod)
+		return fmt.Sprintf(`max(rate(%s{pod=%q}[30s]))`, metric, pod)
 	}
-	return fmt.Sprintf(`max(rate(%s{pod=%q,stream=%q}[2m]))`, metric, pod, stream)
+	return fmt.Sprintf(`max(rate(%s{pod=%q,stream=%q}[30s]))`, metric, pod, stream)
 }
 
 // buildBatchConnectionQuery returns the PromQL for multiple pods, grouped by pod+stream.
 func buildBatchConnectionQuery(metric string, pods []string) string {
-	return fmt.Sprintf(`max by (pod, stream) (rate(%s{pod=~"^(%s)$"}[2m]))`, metric, strings.Join(pods, "|"))
+	return fmt.Sprintf(`max by (pod, stream) (rate(%s{pod=~"^(%s)$"}[30s]))`, metric, strings.Join(pods, "|"))
 }
 
 // queryPrometheusInstant issues an instant query against Prometheus and returns
