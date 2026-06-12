@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here.
 
+## Feature — Pipeline Input/Output Connection Visibility — 2026-06-12
+
+### Hinzugefügt
+- **Pipeline Input/Output Connection Visibility:** Zwei neue read-only Endpunkte liefern den
+  Live-Verbindungsstatus (`up`/`down`/`unknown`) eines Pipelines aus Prometheus-Gauges
+  (`input_connection_up` / `output_connection_up`):
+  - `GET …/pipelines/{name}/connections` (Einzelabfrage, Detailseite)
+  - `GET …/pipelines/connections` (Batch-Abfrage für alle laufenden Pipelines im Namespace)
+  Beide Endpunkte degradieren bei Prometheus-Fehler graceful auf `unknown` (kein 5xx).
+  Im UI zeigt `PipelineDetail` eine zweispaltige Info-Box mit `ConnectionLights`-Dots
+  (15s-Poll, nur bei `Running`); `PipelineList` zeigt einen farbigen Punkt pro Zeile
+  (10s-Batch-Poll: grün = beide verbunden, rot = mind. eine Seite getrennt, grau = unbekannt).
+  Keine Änderung an `Phase`, `Ready`, `StreamActive`, CRD oder Controller.
+  Bekannte Grenze: Metrikname und `{pod,stream}`-Label-Schema werden erst auf ds9s3 bestätigt
+  (ggf. nur Anpassung der Konstantennamen in `buildConnectionQuery`).
+
 ## Feature — Pipeline-Runnable-Health (`StreamActive`) — 2026-06-11
 
 Cluster-/Stream-Pipelines melden jetzt den realen `active`-Status ihres Streams
