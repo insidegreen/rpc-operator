@@ -34,18 +34,19 @@ type InstantSample struct {
 	Value  float64
 }
 
-// buildConnectionQuery returns the PromQL for a single pipeline's connection metric.
+// buildConnectionQuery returns the PromQL for a single pipeline's connection-failure rate.
+// A non-zero rate indicates an actively failing connection.
 // stream="" → pod-only filter (own-pod mode); stream!="" → pod+stream (cluster mode).
 func buildConnectionQuery(metric, pod, stream string) string {
 	if stream == "" {
-		return fmt.Sprintf(`min(%s{pod=%q})`, metric, pod)
+		return fmt.Sprintf(`max(rate(%s{pod=%q}[2m]))`, metric, pod)
 	}
-	return fmt.Sprintf(`min(%s{pod=%q,stream=%q})`, metric, pod, stream)
+	return fmt.Sprintf(`max(rate(%s{pod=%q,stream=%q}[2m]))`, metric, pod, stream)
 }
 
 // buildBatchConnectionQuery returns the PromQL for multiple pods, grouped by pod+stream.
 func buildBatchConnectionQuery(metric string, pods []string) string {
-	return fmt.Sprintf(`min by (pod, stream) (%s{pod=~"^(%s)$"})`, metric, strings.Join(pods, "|"))
+	return fmt.Sprintf(`max by (pod, stream) (rate(%s{pod=~"^(%s)$"}[2m]))`, metric, strings.Join(pods, "|"))
 }
 
 // queryPrometheusInstant issues an instant query against Prometheus and returns
@@ -105,28 +106,30 @@ func (s *Server) queryPrometheusInstant(ctx context.Context, promQL string) ([]I
 	return samples, nil
 }
 
-// connStateFromSamples maps a vector result to a ConnState.
-// Empty → "unknown", first value ≥1 → "up", else → "down".
+// connStateFromSamples maps a connection-failure rate vector to a ConnState.
+// Empty vector → "unknown"; any value > 0 → "down" (actively failing); == 0 → "up".
 func connStateFromSamples(samples []InstantSample) ConnState {
 	if len(samples) == 0 {
 		return "unknown"
 	}
-	if samples[0].Value >= 1 {
-		return "up"
+	for _, s := range samples {
+		if s.Value > 0 {
+			return "down"
+		}
 	}
-	return "down"
+	return "up"
 }
 
-// samplesMap converts a batch vector to a (pod+\x00+stream → ConnState) lookup.
+// samplesMap converts a batch failure-rate vector to a (pod+\x00+stream → ConnState) lookup.
 // Missing stream label (own-pod metrics) is treated as "".
 func samplesMap(samples []InstantSample) map[string]ConnState {
 	m := make(map[string]ConnState, len(samples))
 	for _, s := range samples {
 		key := s.Labels["pod"] + "\x00" + s.Labels["stream"]
-		if s.Value >= 1 {
-			m[key] = "up"
-		} else {
+		if s.Value > 0 {
 			m[key] = "down"
+		} else {
+			m[key] = "up"
 		}
 	}
 	return m
@@ -164,8 +167,8 @@ func (s *Server) handleConnections(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inputSamples, inputErr := s.queryPrometheusInstant(r.Context(), buildConnectionQuery("input_connection_up", pod, stream))
-	outputSamples, outputErr := s.queryPrometheusInstant(r.Context(), buildConnectionQuery("output_connection_up", pod, stream))
+	inputSamples, inputErr := s.queryPrometheusInstant(r.Context(), buildConnectionQuery("input_connection_failed", pod, stream))
+	outputSamples, outputErr := s.queryPrometheusInstant(r.Context(), buildConnectionQuery("output_connection_failed", pod, stream))
 
 	inputState := "unknown"
 	if inputErr == nil {
@@ -235,8 +238,8 @@ func (s *Server) handleNamespaceConnections(w http.ResponseWriter, r *http.Reque
 	}
 	sort.Strings(pods) // deterministic PromQL for tests
 
-	inputSamples, inputErr := s.queryPrometheusInstant(r.Context(), buildBatchConnectionQuery("input_connection_up", pods))
-	outputSamples, outputErr := s.queryPrometheusInstant(r.Context(), buildBatchConnectionQuery("output_connection_up", pods))
+	inputSamples, inputErr := s.queryPrometheusInstant(r.Context(), buildBatchConnectionQuery("input_connection_failed", pods))
+	outputSamples, outputErr := s.queryPrometheusInstant(r.Context(), buildBatchConnectionQuery("output_connection_failed", pods))
 
 	inMap := samplesMap(inputSamples)
 	outMap := samplesMap(outputSamples)

@@ -14,7 +14,8 @@ import (
 )
 
 // mockInstantServer returns a Prometheus httptest server that responds with a
-// single-item vector for every instant query. value should be "1" or "0".
+// single-item vector for every instant query.
+// For connection-failure rate queries: "0" → up (no failures), "1" → down (actively failing).
 func mockInstantServer(t *testing.T, value string) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -108,7 +109,8 @@ func TestHandlerConnections_NoPrometheus(t *testing.T) {
 }
 
 func TestHandlerConnections_Up(t *testing.T) {
-	prom := mockInstantServer(t, "1")
+	// rate(connection_failed[2m]) == 0 → no active failures → "up"
+	prom := mockInstantServer(t, "0")
 	defer prom.Close()
 
 	pipe := validRunningPipeline("demo", "default", "demo-pod-abc")
@@ -134,7 +136,8 @@ func TestHandlerConnections_Up(t *testing.T) {
 }
 
 func TestHandlerConnections_Down(t *testing.T) {
-	prom := mockInstantServer(t, "0")
+	// rate(connection_failed[2m]) > 0 → actively failing → "down"
+	prom := mockInstantServer(t, "1")
 	defer prom.Close()
 
 	pipe := validRunningPipeline("demo", "default", "demo-pod-abc")
@@ -232,8 +235,14 @@ func TestHandlerConnections_ClusterMode_QueryContainsStream(t *testing.T) {
 		if !strings.Contains(q, `stream="demo"`) {
 			t.Errorf("query missing stream selector: %q", q)
 		}
-		if !strings.Contains(q, "min(") {
-			t.Errorf("query missing min() aggregation: %q", q)
+		if !strings.Contains(q, "max(") {
+			t.Errorf("query missing max() aggregation: %q", q)
+		}
+		if !strings.Contains(q, "rate(") {
+			t.Errorf("query missing rate(): %q", q)
+		}
+		if !strings.Contains(q, "connection_failed") {
+			t.Errorf("query must use connection_failed metric (not connection_up): %q", q)
 		}
 	}
 }
@@ -283,22 +292,22 @@ func TestHandlerConnections_RouteRegistered(t *testing.T) {
 // --- handleNamespaceConnections (batch) ---
 
 // mockBatchInstantServer returns a Prometheus stub for batch queries.
-// For input_connection_up: pipe-a=1, pipe-b=0 on instance etl-0.
-// For output_connection_up: pipe-a=1, pipe-b=1.
+// For input_connection_failed rate: pipe-a=0 (up), pipe-b=1 (down) on instance etl-0.
+// For output_connection_failed rate: pipe-a=0 (up), pipe-b=0 (up).
 func mockBatchInstantServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("query")
 		var results []map[string]any
-		if strings.Contains(query, "input_connection_up") {
+		if strings.Contains(query, "input_connection_failed") {
 			results = []map[string]any{
-				{"metric": map[string]string{"pod": "etl-0", "stream": "pipe-a"}, "value": []any{1715000000, "1"}},
-				{"metric": map[string]string{"pod": "etl-0", "stream": "pipe-b"}, "value": []any{1715000000, "0"}},
+				{"metric": map[string]string{"pod": "etl-0", "stream": "pipe-a"}, "value": []any{1715000000, "0"}},
+				{"metric": map[string]string{"pod": "etl-0", "stream": "pipe-b"}, "value": []any{1715000000, "1"}},
 			}
 		} else {
 			results = []map[string]any{
-				{"metric": map[string]string{"pod": "etl-0", "stream": "pipe-a"}, "value": []any{1715000000, "1"}},
-				{"metric": map[string]string{"pod": "etl-0", "stream": "pipe-b"}, "value": []any{1715000000, "1"}},
+				{"metric": map[string]string{"pod": "etl-0", "stream": "pipe-a"}, "value": []any{1715000000, "0"}},
+				{"metric": map[string]string{"pod": "etl-0", "stream": "pipe-b"}, "value": []any{1715000000, "0"}},
 			}
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -442,7 +451,7 @@ func TestHandlerNamespaceConnections_OwnPodPipeline(t *testing.T) {
 			"data": map[string]any{
 				"resultType": "vector",
 				"result": []map[string]any{
-					{"metric": map[string]string{"pod": "own-pod-abc", "stream": ""}, "value": []any{1715000000, "1"}},
+					{"metric": map[string]string{"pod": "own-pod-abc", "stream": ""}, "value": []any{1715000000, "0"}},
 				},
 			},
 		})
