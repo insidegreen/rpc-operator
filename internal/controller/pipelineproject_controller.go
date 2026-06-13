@@ -38,6 +38,7 @@ import (
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 	"github.com/insidegreen/rpc-operator-claude/internal/nats"
+	"github.com/insidegreen/rpc-operator-claude/internal/streams"
 )
 
 // projectFinalizer guards Project deletion until the operator has applied the
@@ -59,6 +60,10 @@ type PipelineProjectReconciler struct {
 
 	// Streams provisions one JetStream stream per valid route. Wired from main.go.
 	Streams nats.StreamManager
+
+	// Instances pushes cache resources to the project cluster's Connect instances
+	// via the streams-mode Resources API. Wired from main.go. F51.
+	Instances streams.Client
 
 	// Recorder emits Events (e.g. an InvalidRoutes warning on a bad route graph).
 	Recorder record.EventRecorder
