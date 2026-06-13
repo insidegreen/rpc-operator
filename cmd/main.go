@@ -290,6 +290,7 @@ func main() {
 		Scheme:    mgr.GetScheme(),
 		NATSImage: natsImage,
 		Streams:   &rpcnats.JSManager{},
+		Instances: streams.NewHTTPClient(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Failed to create controller", "controller", "pipelineproject")
 		os.Exit(1)

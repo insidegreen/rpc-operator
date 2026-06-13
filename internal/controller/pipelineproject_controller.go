@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -75,6 +76,7 @@ type PipelineProjectReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=persistentvolumeclaims,verbs=get;list;watch;delete
 // +kubebuilder:rbac:groups=core,resources=events,verbs=create;patch
 // +kubebuilder:rbac:groups=rpc.operator.io,resources=pipelines,verbs=get;list;watch
+// +kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
 
 // Reconcile drives a PipelineProject towards its desired state.
 //
@@ -193,6 +195,11 @@ func (r *PipelineProjectReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		}
 	}
 
+	cacheStatuses, err := r.reconcileCacheResources(ctx, &project)
+	if err != nil {
+		return ctrl.Result{}, fmt.Errorf("reconcile cache resources: %w", err)
+	}
+
 	// Status: derive phase and child readiness from the children we just (re-)applied.
 	clusterChild := rpcv1alpha1.ProjectChildStatus{
 		Name:  cluster.Name,
@@ -246,6 +253,7 @@ func (r *PipelineProjectReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	if condChanged || routesCondChanged ||
 		!reflect.DeepEqual(project.Status.Routes, routeStatuses) ||
+		!reflect.DeepEqual(project.Status.CacheResources, cacheStatuses) ||
 		project.Status.Phase != phase ||
 		project.Status.Cluster != clusterChild ||
 		project.Status.NATS != natsChild ||
@@ -255,6 +263,7 @@ func (r *PipelineProjectReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		project.Status.NATS = natsChild
 		project.Status.ObservedGeneration = project.Generation
 		project.Status.Routes = routeStatuses
+		project.Status.CacheResources = cacheStatuses
 		apimeta.SetStatusCondition(&project.Status.Conditions, desiredCond)
 		apimeta.SetStatusCondition(&project.Status.Conditions, routesCond)
 		if err := r.Status().Update(ctx, &project); err != nil {
@@ -340,8 +349,24 @@ func (r *PipelineProjectReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Service{}).
 		Owns(&appsv1.StatefulSet{}).
 		Watches(&rpcv1alpha1.Pipeline{}, handler.EnqueueRequestsFromMapFunc(r.projectsForPipeline)).
+		Watches(&corev1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.projectsForClusterPod)).
 		Named("pipelineproject").
 		Complete(r)
+}
+
+// projectsForClusterPod maps a project cluster pod back to its PipelineProject.
+// Cluster pods carry clusterLabelKey == "<project>-cluster"; the project name is
+// that label minus the "-cluster" suffix. A pod restart thus re-pushes cache
+// resources (self-heal), mirroring the stream self-healing model.
+func (r *PipelineProjectReconciler) projectsForClusterPod(_ context.Context, obj client.Object) []reconcile.Request {
+	cluster := obj.GetLabels()[clusterLabelKey]
+	if cluster == "" || !strings.HasSuffix(cluster, "-cluster") {
+		return nil
+	}
+	project := strings.TrimSuffix(cluster, "-cluster")
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{
+		Name: project, Namespace: obj.GetNamespace(),
+	}}}
 }
 
 // projectsForPipeline enqueues every PipelineProject in the changed pipeline's
