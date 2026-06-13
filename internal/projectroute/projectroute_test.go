@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/runtime"
+
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 )
 
@@ -207,6 +209,45 @@ func TestIsEmpty_Standalone(t *testing.T) {
 	plan := PlanFor(proj, "ns", "unrelated")
 	if !plan.IsEmpty() {
 		t.Errorf("standalone plan must be empty, got %+v", plan)
+	}
+}
+
+func TestCacheBucket(t *testing.T) {
+	if got := CacheBucket("orders", "shared"); got != "rpc-orders-shared" {
+		t.Fatalf("CacheBucket = %q, want rpc-orders-shared", got)
+	}
+}
+
+func TestValidateProject_CacheResourceRequiresExactlyOneVariant(t *testing.T) {
+	bad := &rpcv1alpha1.PipelineProject{}
+	bad.Name = "orders"
+	bad.Spec.CacheResources = []rpcv1alpha1.ProjectCacheResource{{Name: "c1"}} // neither set
+	errs := ValidateProject(bad, map[string]PipelineView{})
+	if len(errs) == 0 {
+		t.Fatal("expected error when cache resource sets neither natsKV nor config")
+	}
+
+	both := &rpcv1alpha1.PipelineProject{}
+	both.Name = "orders"
+	both.Spec.CacheResources = []rpcv1alpha1.ProjectCacheResource{{
+		Name:   "c1",
+		NatsKV: &rpcv1alpha1.ProjectNATSKVCache{},
+		Config: runtime.RawExtension{Raw: []byte(`{"redis":{}}`)},
+	}}
+	if errs := ValidateProject(both, map[string]PipelineView{}); len(errs) == 0 {
+		t.Fatal("expected error when cache resource sets both natsKV and config")
+	}
+}
+
+func TestValidateProject_CacheResourceValidPasses(t *testing.T) {
+	ok := &rpcv1alpha1.PipelineProject{}
+	ok.Name = "orders"
+	ok.Spec.CacheResources = []rpcv1alpha1.ProjectCacheResource{
+		{Name: "kv1", NatsKV: &rpcv1alpha1.ProjectNATSKVCache{}},
+		{Name: "redis1", Config: runtime.RawExtension{Raw: []byte(`{"redis":{}}`)}},
+	}
+	if errs := ValidateProject(ok, map[string]PipelineView{}); len(errs) != 0 {
+		t.Fatalf("expected no errors, got %v", msgs(errs))
 	}
 }
 

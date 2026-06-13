@@ -28,6 +28,13 @@ func StreamName(project, route string) string {
 	return fmt.Sprintf("rpc-%s-%s", project, route)
 }
 
+// CacheBucket is the managed NATS KV bucket backing a project cache resource:
+// rpc-<project>-<name>. JetStream names the underlying stream KV_<bucket>, so it
+// never collides with a route stream of the same <name>.
+func CacheBucket(project, name string) string {
+	return fmt.Sprintf("rpc-%s-%s", project, name)
+}
+
 // Subject is the NATS subject for one route: rpc.<project>.<route>.
 func Subject(project, route string) string {
 	return fmt.Sprintf("rpc.%s.%s", project, route)
@@ -223,6 +230,18 @@ func ValidateProject(project *rpcv1alpha1.PipelineProject, pipelines map[string]
 	if cyc := findCycle(routes); len(cyc) > 0 {
 		errs = append(errs, ProjectError{
 			Message: fmt.Sprintf("route graph contains a cycle: %s", strings.Join(cyc, " → "))})
+	}
+
+	// Rule: each cache resource must set exactly one of natsKV or config.
+	for i := range project.Spec.CacheResources {
+		cr := &project.Spec.CacheResources[i]
+		hasKV := cr.NatsKV != nil
+		hasCfg := len(cr.Config.Raw) > 0 && string(cr.Config.Raw) != "null"
+		if hasKV == hasCfg {
+			errs = append(errs, ProjectError{
+				Message: fmt.Sprintf("cacheResources[%s]: set exactly one of natsKV or config", cr.Name),
+			})
+		}
 	}
 
 	// Stable order for deterministic status/tests.
