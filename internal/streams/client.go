@@ -61,6 +61,12 @@ type Client interface {
 	// GetStreamStatus reads one stream's runtime status. A 404 returns
 	// (StreamStatus{}, ErrStreamNotFound); other non-2xx returns a plain error.
 	GetStreamStatus(ctx context.Context, podBaseURL, streamID string) (StreamStatus, error)
+	// EnsureCacheResource upserts a cache resource (POST /resources/cache/{label}).
+	// A 4xx (lint) returns *ConfigRejectedError; 5xx/transport errors are plain errors.
+	EnsureCacheResource(ctx context.Context, podBaseURL, label, configYAML string) error
+	// DeleteCacheResource is a no-op on HTTPClient: DELETE is not supported by the
+	// RPC streams API. The FakeClient records the removal so controller tests work.
+	DeleteCacheResource(ctx context.Context, podBaseURL, label string) error
 }
 
 // HTTPClient is the production Client over HTTP.
@@ -164,6 +170,37 @@ func (c *HTTPClient) ListStreams(ctx context.Context, podBaseURL string) (map[st
 		out[id] = struct{}{}
 	}
 	return out, nil
+}
+
+// EnsureCacheResource upserts a cache resource via POST /resources/cache/{label}.
+// POST is the only supported verb (spike-verified: PUT/DELETE return "verb not supported").
+func (c *HTTPClient) EnsureCacheResource(ctx context.Context, podBaseURL, label, configYAML string) error {
+	url := fmt.Sprintf("%s/resources/cache/%s", strings.TrimRight(podBaseURL, "/"), label)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(configYAML))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-yaml")
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return fmt.Errorf("POST cache resource %s: %w", label, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+		return &ConfigRejectedError{StreamID: label, Status: resp.StatusCode, Body: string(body)}
+	}
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("POST cache resource %s: status %d: %s", label, resp.StatusCode, string(body))
+	}
+	return nil
+}
+
+// DeleteCacheResource is a no-op: DELETE /resources/cache/{label} is not supported
+// by the RPC streams API. Removal is effected by deleting the NATS KV bucket and
+// not re-pushing the resource; the instance in-memory registration clears on restart.
+func (c *HTTPClient) DeleteCacheResource(_ context.Context, _, _ string) error {
+	return nil
 }
 
 func (c *HTTPClient) GetStreamStatus(ctx context.Context, podBaseURL, streamID string) (StreamStatus, error) {

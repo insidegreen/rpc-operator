@@ -15,18 +15,17 @@ import (
 	"sync"
 )
 
-// FakeClient is an in-memory Client for tests. It records streams per pod base
-// URL so specs can assert placement and simulate a pod restart (DropPod).
+// FakeClient is an in-memory Client for tests. It records streams and cache
+// resources per pod base URL, and supports pod restart simulation via DropPod.
 type FakeClient struct {
 	mu      sync.Mutex
 	streams map[string]map[string]string // podBaseURL -> streamID -> configYAML
-	// EnsureErr, when non-nil, is returned by EnsureStream instead of recording
-	// the stream — lets tests simulate a streams-API rejection (e.g. a 400 lint
-	// error via a *ConfigRejectedError).
+	caches  map[string]map[string]string // podBaseURL -> label -> configYAML
+	// EnsureErr, when non-nil, is returned by EnsureStream instead of recording.
 	EnsureErr error
+	// EnsureCacheErr, when non-nil, is returned by EnsureCacheResource instead of recording.
+	EnsureCacheErr error
 	// GetErr, when non-nil, is returned by GetStreamStatus instead of a status.
-	// Set it to ErrStreamNotFound to model a vanished stream, or any other error
-	// to model a transport/5xx read failure.
 	GetErr error
 	// inactive marks stream ids that are held but report Active:false.
 	inactive map[string]bool
@@ -36,7 +35,11 @@ var _ Client = (*FakeClient)(nil)
 
 // NewFakeClient returns an empty FakeClient.
 func NewFakeClient() *FakeClient {
-	return &FakeClient{streams: map[string]map[string]string{}, inactive: map[string]bool{}}
+	return &FakeClient{
+		streams:  map[string]map[string]string{},
+		caches:   map[string]map[string]string{},
+		inactive: map[string]bool{},
+	}
 }
 
 func (f *FakeClient) EnsureStream(_ context.Context, podBaseURL, streamID, configYAML string) error {
@@ -77,11 +80,47 @@ func (f *FakeClient) Has(podBaseURL, streamID string) bool {
 	return ok
 }
 
-// DropPod removes all streams on a pod, simulating a pod restart (test helper).
+// DropPod removes all streams and cache resources on a pod, simulating a restart.
 func (f *FakeClient) DropPod(podBaseURL string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	delete(f.streams, podBaseURL)
+	delete(f.caches, podBaseURL)
+}
+
+func (f *FakeClient) EnsureCacheResource(_ context.Context, podBaseURL, label, configYAML string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.EnsureCacheErr != nil {
+		return f.EnsureCacheErr
+	}
+	if f.caches[podBaseURL] == nil {
+		f.caches[podBaseURL] = map[string]string{}
+	}
+	f.caches[podBaseURL][label] = configYAML
+	return nil
+}
+
+func (f *FakeClient) DeleteCacheResource(_ context.Context, podBaseURL, label string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.caches[podBaseURL], label)
+	return nil
+}
+
+// HasCacheResource reports whether a label exists on a pod (test helper).
+func (f *FakeClient) HasCacheResource(podBaseURL, label string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	_, ok := f.caches[podBaseURL][label]
+	return ok
+}
+
+// CacheResourceBody returns the stored config for a label (test helper).
+func (f *FakeClient) CacheResourceBody(podBaseURL, label string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.caches[podBaseURL][label]
 }
 
 // StreamBody returns the configYAML stored for a stream (test helper).
