@@ -128,6 +128,33 @@ func TestHTTPClient_EnsureStream_500IsNotConfigRejected(t *testing.T) {
 	}
 }
 
+func TestHTTPClient_EnsureStream_InitFailure502IsConfigRejected(t *testing.T) {
+	// Redpanda Connect reports a stream that lints OK but fails to initialise a
+	// component (e.g. an output referencing a cache resource that is not
+	// registered) as 502 with a "failed to init" body. This is permanent for an
+	// identical config + cluster state, so EnsureStream must surface it as
+	// *ConfigRejectedError instead of requeuing forever with no status feedback.
+	const initBody = "Error: failed to init output 'sensor_kv_output' path root.output: cache resource 'sensor-cache' was not found\n"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(initBody))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient()
+	err := c.EnsureStream(context.Background(), srv.URL, "sensor-store", "output: {}\n")
+	var rejected *ConfigRejectedError
+	if !errors.As(err, &rejected) {
+		t.Fatalf("want *ConfigRejectedError for 502 init failure, got %T: %v", err, err)
+	}
+	if rejected.Status != http.StatusBadGateway {
+		t.Errorf("want status 502, got %d", rejected.Status)
+	}
+	if !strings.Contains(rejected.Body, "cache resource 'sensor-cache' was not found") {
+		t.Errorf("want init body in error, got %q", rejected.Body)
+	}
+}
+
 func TestHTTPClient_DeleteStream_404IsOK(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

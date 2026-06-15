@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -46,10 +47,13 @@ func TestEnsureCacheResource_LintRejected(t *testing.T) {
 	}
 }
 
-func TestEnsureCacheResource_5xxIsTransient(t *testing.T) {
+func TestEnsureCacheResource_BareGateway502IsTransient(t *testing.T) {
+	// A bodyless gateway 502 (e.g. a restarting pod behind the Service) is
+	// transient; it must NOT be a *ConfigRejectedError so the controller keeps
+	// retrying instead of marking the resource permanently Failed.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
-		_, _ = w.Write([]byte("Error: failed to init cache"))
+		_, _ = w.Write([]byte("502 Bad Gateway"))
 	}))
 	defer srv.Close()
 
@@ -60,7 +64,34 @@ func TestEnsureCacheResource_5xxIsTransient(t *testing.T) {
 	}
 	var rej *ConfigRejectedError
 	if errors.As(err, &rej) {
-		t.Fatal("502 must NOT be ConfigRejectedError (it is transient)")
+		t.Fatal("bare 502 must NOT be ConfigRejectedError (it is transient)")
+	}
+}
+
+func TestEnsureCacheResource_InitFailure502IsConfigRejected(t *testing.T) {
+	// Redpanda Connect reports a cache resource that fails to initialise (e.g. a
+	// multilevel cache with fewer than two levels) as 502 with a "failed to init"
+	// body. This is permanent for an identical config, so EnsureCacheResource must
+	// surface it as *ConfigRejectedError for the controller to record in status
+	// instead of requeuing forever with no feedback.
+	const initBody = "Error: failed to init cache <no label> path root.cache_resources: expected at least two cache levels, found 1\n"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadGateway)
+		_, _ = w.Write([]byte(initBody))
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient()
+	err := c.EnsureCacheResource(context.Background(), srv.URL, "sensor-cache", "multilevel: [a]\n")
+	var rej *ConfigRejectedError
+	if !errors.As(err, &rej) {
+		t.Fatalf("want *ConfigRejectedError for 502 init failure, got %T: %v", err, err)
+	}
+	if rej.Status != http.StatusBadGateway {
+		t.Errorf("want status 502, got %d", rej.Status)
+	}
+	if !strings.Contains(rej.Body, "expected at least two cache levels") {
+		t.Errorf("want init body in error, got %q", rej.Body)
 	}
 }
 

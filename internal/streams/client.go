@@ -23,11 +23,13 @@ import (
 	"time"
 )
 
-// ConfigRejectedError is returned by EnsureStream when the streams API rejects
-// the config with a 4xx status (e.g. lint errors). It is a permanent error:
-// retrying the identical config fails the same way, so callers should surface it
-// (record it in status) rather than requeue. 5xx and transport failures are
-// returned as plain errors because they are transient and worth retrying.
+// ConfigRejectedError is returned by EnsureStream/EnsureCacheResource when the
+// streams API rejects the config permanently: a 4xx (lint errors) or a 502 whose
+// body reports a component initialisation failure (see configRejected). Retrying
+// the identical config against the same cluster state fails the same way, so
+// callers should surface it (record it in status) rather than requeue. Transport
+// failures and bodyless/other 5xx are returned as plain errors because they are
+// transient and worth retrying.
 type ConfigRejectedError struct {
 	StreamID string
 	Status   int
@@ -36,6 +38,24 @@ type ConfigRejectedError struct {
 
 func (e *ConfigRejectedError) Error() string {
 	return fmt.Sprintf("ensure stream %s: status %d: %s", e.StreamID, e.Status, e.Body)
+}
+
+// configRejected reports whether a non-2xx streams-API response is a permanent
+// config rejection (vs. a transient error worth retrying). A 4xx is always a
+// rejection (lint errors). Redpanda Connect also reports component
+// initialisation failures as 502 with a "failed to init" body — e.g. a
+// multilevel cache with fewer than two levels, or an output/processor
+// referencing a cache resource that is not registered. These are permanent for
+// an identical config + cluster state, unlike a bodyless gateway 502 from a
+// restarting pod, which stays transient.
+func configRejected(status int, body string) bool {
+	if status >= 400 && status < 500 {
+		return true
+	}
+	if status == http.StatusBadGateway && strings.Contains(body, "failed to init") {
+		return true
+	}
+	return false
 }
 
 // ErrStreamNotFound is returned by GetStreamStatus when the instance reports the
@@ -62,7 +82,8 @@ type Client interface {
 	// (StreamStatus{}, ErrStreamNotFound); other non-2xx returns a plain error.
 	GetStreamStatus(ctx context.Context, podBaseURL, streamID string) (StreamStatus, error)
 	// EnsureCacheResource upserts a cache resource (POST /resources/cache/{label}).
-	// A 4xx (lint) returns *ConfigRejectedError; 5xx/transport errors are plain errors.
+	// A 4xx (lint) or a 502 init failure returns *ConfigRejectedError (see
+	// configRejected); other 5xx/transport errors are plain (transient) errors.
 	EnsureCacheResource(ctx context.Context, podBaseURL, label, configYAML string) error
 	// DeleteCacheResource is a no-op on HTTPClient: DELETE is not supported by the
 	// RPC streams API. The FakeClient records the removal so controller tests work.
@@ -96,7 +117,7 @@ func (c *HTTPClient) EnsureStream(ctx context.Context, podBaseURL, streamID, con
 			return err
 		}
 	}
-	if status >= 400 && status < 500 {
+	if configRejected(status, body) {
 		return &ConfigRejectedError{StreamID: streamID, Status: status, Body: body}
 	}
 	if status >= 300 {
@@ -187,7 +208,7 @@ func (c *HTTPClient) EnsureCacheResource(ctx context.Context, podBaseURL, label,
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+	if configRejected(resp.StatusCode, string(body)) {
 		return &ConfigRejectedError{StreamID: label, Status: resp.StatusCode, Body: string(body)}
 	}
 	if resp.StatusCode >= 300 {
