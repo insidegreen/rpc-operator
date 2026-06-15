@@ -44,4 +44,11 @@ describe('TopologyCanvas caches', () => {
     // dashed cache edge present
     expect(container.querySelector('path[stroke-dasharray]')).toBeTruthy()
   })
+
+  it('renders the "output" label on a cache output edge', () => {
+    const topo = computeLayout(buildTopology(withCache, ['ingest', 'warehouse'],
+      [{ pipeline: 'warehouse', cache: 'shared', operators: ['output'] }]))
+    render(<TopologyCanvas topology={topo} selectedId={null} onSelect={() => {}} />)
+    expect(screen.getByText('output')).toBeInTheDocument()
+  })
 })
