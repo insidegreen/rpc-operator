@@ -6,6 +6,7 @@ import type {
 } from '../types'
 import { buildTopology, computeLayout, type TopoNode } from '../topology'
 import { detectCacheUses, type CacheUse } from '../cacheUsage'
+import { detectCacheLinks, type CacheLink } from '../cacheLinks'
 import { TopologyCanvas } from './TopologyCanvas'
 import { RouterDrawer } from './RouterDrawer'
 import { CacheDrawer } from './CacheDrawer'
@@ -95,8 +96,9 @@ export function ProjectDetail({
   const serverRoutes = project.spec.routes ?? []
   const members = memberPipelines.map(p => p.metadata.name)
   const cacheUses = detectCacheUses(memberPipelines)
+  const cacheLinks = detectCacheLinks(draftCaches)
   const draftProject = { ...project, spec: { ...project.spec, routes: draftRoutes, cacheResources: draftCaches } }
-  const topo = computeLayout(buildTopology(draftProject, members, cacheUses))
+  const topo = computeLayout(buildTopology(draftProject, members, cacheUses, cacheLinks))
   const selectedNode = topo.nodes.find(n => n.id === selectedId) ?? null
   const pipelineNames = topo.nodes.filter(n => n.kind === 'pipeline').map(n => n.id)
   // Surface the operator's verdict: any False status condition is a problem the
@@ -262,6 +264,8 @@ export function ProjectDetail({
               cache={draftCaches.find(c => c.name === selectedNode.cacheName)}
               status={project.status?.cacheResources?.find(cs => cs.name === selectedNode.cacheName)}
               uses={cacheUses.filter(u => u.cache === selectedNode.cacheName)}
+              layers={cacheLinks.filter(l => l.from === selectedNode.cacheName).sort((a, b) => a.level - b.level)}
+              onSelectCache={n => setSelectedId(`cache:${n}`)}
               readOnly={readOnly}
               onEdit={c => setDrawerCache(c)}
               onDelete={removeCache}
@@ -331,16 +335,18 @@ function RouterPanel({ project, route, status, unsaved, readOnly, onEdit, onDele
   )
 }
 
-function CachePanel({ node, cache, status, uses, readOnly, onEdit, onDelete, onAddUndeclared, onOpenPipeline }: {
+function CachePanel({ node, cache, status, uses, layers, readOnly, onEdit, onDelete, onAddUndeclared, onOpenPipeline, onSelectCache }: {
   node: TopoNode
   cache?: ProjectCacheResource
   status?: ProjectCacheResourceStatus
   uses: CacheUse[]
+  layers: CacheLink[]
   readOnly: boolean
   onEdit: (c: ProjectCacheResource) => void
   onDelete: (name: string) => void
   onAddUndeclared: (name: string) => void
   onOpenPipeline: (p: string) => void
+  onSelectCache: (name: string) => void
 }) {
   const undeclared = !!node.undeclared
   const failed = (status?.conditions ?? []).filter(c => c.status === 'False')
@@ -378,6 +384,23 @@ function CachePanel({ node, cache, status, uses, readOnly, onEdit, onDelete, onA
             ))}
           </tbody>
         </table>
+      )}
+      {layers.length > 0 && (
+        <>
+          <div style={{ marginTop: 10, fontWeight: 600 }}>Layers</div>
+          <table style={{ width: '100%', fontSize: 12, marginTop: 4 }}>
+            <tbody>
+              {layers.map(l => (
+                <tr key={l.level}>
+                  <td style={{ padding: '3px 0', color: '#64748b', width: 28 }}>{l.level}.</td>
+                  <td style={{ padding: '3px 0' }}>
+                    <button onClick={() => onSelectCache(l.to)} style={linkBtnStyle}>{l.to}</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
       {!readOnly && (
         <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>

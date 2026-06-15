@@ -279,3 +279,29 @@ describe('ProjectDetail caches', () => {
     expect(screen.getByRole('button', { name: /Save cache/i })).toBeInTheDocument()
   })
 })
+
+describe('ProjectDetail multilevel caches', () => {
+  const withLevels: PipelineProject = {
+    metadata: { name: 'orders', namespace: 'default', resourceVersion: '1' },
+    spec: {
+      cacheResources: [
+        { name: 'leveled', config: { multilevel: ['hot', 'kv'] } },
+        { name: 'hot', config: { memory: {} } },
+        { name: 'kv', natsKV: {} },
+      ],
+    },
+    status: { phase: 'Ready', cluster: { name: 'orders-cluster', ready: 1, total: 1 } },
+  }
+
+  it('shows the multilevel link on the map and a Layers list in the panel', async () => {
+    server.use(http.get('/api/v1/namespaces/default/pipelineprojects/orders', () => HttpResponse.json(withLevels)))
+    render(<ProjectDetail namespace="default" name="orders" readOnly={false}
+      onBack={() => {}} onOpenPipeline={() => {}} onAddPipeline={() => {}} />)
+    await waitFor(() => expect(screen.getByText('leveled')).toBeInTheDocument())
+    expect(screen.getByText('L1')).toBeInTheDocument()        // cacheLink edge label on the map
+    await userEvent.click(screen.getByText('leveled'))         // select the composer cache node
+    expect(screen.getByText('Layers')).toBeInTheDocument()     // panel section
+    expect(screen.getByRole('button', { name: 'hot' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'kv' })).toBeInTheDocument()
+  })
+})
