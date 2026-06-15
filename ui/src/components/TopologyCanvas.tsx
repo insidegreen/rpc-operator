@@ -29,6 +29,26 @@ export function TopologyCanvas({ topology, selectedId, onSelect }: Props) {
         const a = pos.get(e.from); const b = pos.get(e.to)
         if (!a || !b) return null
 
+        if (e.kind === 'cacheLink') {
+          // composer cache → layer cache, both in the band: arc bowing above the row.
+          // Clamp the apex so a caches-only project (no route band above) doesn't bow
+          // the arc/label above the viewBox top and get clipped.
+          const x1 = a.x + NODE_W / 2 + PAD, y1 = a.y + PAD
+          const x2 = b.x + NODE_W / 2 + PAD, y2 = b.y + PAD
+          const cy = Math.max(4, Math.min(y1, y2) - 40)
+          const d = `M ${x1},${y1} Q ${(x1 + x2) / 2},${cy} ${x2},${y2}`
+          return (
+            <g key={e.id}>
+              <path d={d} fill="none" stroke="#10b981" strokeWidth={1.5} strokeDasharray="5 4" markerEnd="url(#cacheArrow)" />
+              {e.level != null && (
+                <text x={(x1 + x2) / 2} y={cy + 12} textAnchor="middle" fontSize={10} fontWeight={600} fill="#047857">
+                  L{e.level}
+                </text>
+              )}
+            </g>
+          )
+        }
+
         if (e.kind === 'cache') {
           // pipeline (above) → cache (below): vertical-ish dashed bezier
           const x1 = a.x + NODE_W / 2 + PAD, y1 = a.y + NODE_H + PAD
@@ -67,7 +87,7 @@ export function TopologyCanvas({ topology, selectedId, onSelect }: Props) {
         if (n.kind !== 'cache') {
           return <NodeBox key={n.id} node={n} selected={n.id === selectedId} onSelect={onSelect} />
         }
-        const used = topology.edges.some(e => e.kind === 'cache' && e.to === n.id)
+        const used = topology.edges.some(e => (e.kind === 'cache' || e.kind === 'cacheLink') && e.to === n.id)
         return (
           <CacheNode key={n.id} node={n} unused={!used && !n.undeclared}
                      selected={n.id === selectedId} onSelect={onSelect} />

@@ -51,4 +51,14 @@ describe('TopologyCanvas caches', () => {
     render(<TopologyCanvas topology={topo} selectedId={null} onSelect={() => {}} />)
     expect(screen.getByText('output')).toBeInTheDocument()
   })
+
+  it('renders a cacheLink arc with its level label', () => {
+    const proj: PipelineProject = {
+      metadata: { name: 'orders', namespace: 'default' },
+      spec: { cacheResources: [{ name: 'leveled', config: { multilevel: ['hot'] } }, { name: 'hot', config: { memory: {} } }] },
+    }
+    const topo = computeLayout(buildTopology(proj, [], [], [{ from: 'leveled', to: 'hot', level: 1 }]))
+    render(<TopologyCanvas topology={topo} selectedId={null} onSelect={() => {}} />)
+    expect(screen.getByText('L1')).toBeInTheDocument()
+  })
 })
