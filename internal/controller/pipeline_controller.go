@@ -24,15 +24,19 @@ import (
 
 	monitoringv1 "github.com/prometheus-operator/prometheus-operator/pkg/apis/monitoring/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 	"github.com/insidegreen/rpc-operator-claude/internal/render"
@@ -426,6 +430,48 @@ func (r *PipelineReconciler) pipelinesForSecret(ctx context.Context, obj client.
 	return reqs
 }
 
+// pipelinesForProject maps a changed PipelineProject to its member pipelines
+// (spec.projectRef.name == project.Name, same namespace). Used by
+// Watches(&PipelineProject{}) so that when the project's cache resources (or
+// other stream-affecting spec) change, member streams are re-deployed — without
+// this, a pipeline that failed to deploy because a cache resource was not yet
+// registered stays stuck until its own error-backoff happens to retry.
+func (r *PipelineReconciler) pipelinesForProject(ctx context.Context, obj client.Object) []ctrl.Request {
+	project, ok := obj.(*rpcv1alpha1.PipelineProject)
+	if !ok {
+		return nil
+	}
+	var pipes rpcv1alpha1.PipelineList
+	if err := r.List(ctx, &pipes, client.InNamespace(project.GetNamespace())); err != nil {
+		return nil
+	}
+	reqs := make([]ctrl.Request, 0, len(pipes.Items))
+	for i := range pipes.Items {
+		ref := pipes.Items[i].Spec.ProjectRef
+		if ref == nil || ref.Name != project.GetName() {
+			continue
+		}
+		reqs = append(reqs, ctrl.Request{
+			NamespacedName: client.ObjectKey{Name: pipes.Items[i].Name, Namespace: pipes.Items[i].Namespace},
+		})
+	}
+	return reqs
+}
+
+// projectChangeRedeploysMembers reports whether a PipelineProject update is one
+// that requires re-deploying member streams. We re-enqueue members when the
+// spec changes (generation bump: routes, cache resources, cluster) or when the
+// readiness of a cache resource changes (status.cacheResources) — the latter is
+// what unblocks a member stuck on a cache resource that was not yet registered.
+// Unrelated status churn (cluster ready counts, condition timestamps) is ignored
+// so the watch does not cause a reconcile storm.
+func projectChangeRedeploysMembers(oldP, newP *rpcv1alpha1.PipelineProject) bool {
+	if oldP.Generation != newP.Generation {
+		return true
+	}
+	return !equality.Semantic.DeepEqual(oldP.Status.CacheResources, newP.Status.CacheResources)
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *PipelineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &rpcv1alpha1.Pipeline{}, secretNameIndex,
@@ -448,6 +494,20 @@ func (r *PipelineReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.pipelinesForSecret),
+		).
+		Watches(
+			&rpcv1alpha1.PipelineProject{},
+			handler.EnqueueRequestsFromMapFunc(r.pipelinesForProject),
+			builder.WithPredicates(predicate.Funcs{
+				CreateFunc:  func(event.CreateEvent) bool { return true },
+				DeleteFunc:  func(event.DeleteEvent) bool { return false },
+				GenericFunc: func(event.GenericEvent) bool { return false },
+				UpdateFunc: func(e event.UpdateEvent) bool {
+					oldP, ok1 := e.ObjectOld.(*rpcv1alpha1.PipelineProject)
+					newP, ok2 := e.ObjectNew.(*rpcv1alpha1.PipelineProject)
+					return ok1 && ok2 && projectChangeRedeploysMembers(oldP, newP)
+				},
+			}),
 		).
 		Named("pipeline").
 		Complete(r)
