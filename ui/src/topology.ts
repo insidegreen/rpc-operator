@@ -1,5 +1,6 @@
 import type { PipelineProject, ProjectRoute } from './types'
 import type { CacheUse } from './cacheUsage'
+import type { CacheLink } from './cacheLinks'
 
 export type NodeKind = 'pipeline' | 'router' | 'cache'
 
@@ -19,11 +20,13 @@ export interface TopoEdge {
   id: string
   from: string        // node id
   to: string          // node id
-  kind: 'route' | 'cache'
+  kind: 'route' | 'cache' | 'cacheLink'
   /** Consumer-side predicate, only on router→pipeline edges. */
   predicate?: string
   /** Cache operators (get/set/add/delete/exists), only on cache edges. */
   operators?: string[]
+  /** 1-based layer order, only on cacheLink (multilevel) edges. */
+  level?: number
 }
 
 export interface Topology {
@@ -51,13 +54,15 @@ const cacheId = (name: string) => `cache:${name}`
  * They are added as standalone nodes so a freshly-attached pipeline shows on the
  * map even before it is wired into any route (otherwise it would be invisible).
  *
- * `cacheUses` drives cache nodes and dashed cache edges. Cache edges carry
- * `kind: 'cache'` and are excluded from the route-layering algorithm.
+ * `cacheUses` drives cache nodes and dashed `pipeline → cache` edges (`kind: 'cache'`).
+ * `cacheLinks` drives `cache → cache` multilevel edges (`kind: 'cacheLink'`). Both kinds
+ * are excluded from the route-layering algorithm (only `route` edges are layered).
  */
 export function buildTopology(
   project: PipelineProject,
   memberPipelines: string[] = [],
   cacheUses: CacheUse[] = [],
+  cacheLinks: CacheLink[] = [],
 ): Topology {
   const routes: ProjectRoute[] = project.spec.routes ?? []
   const nodes = new Map<string, TopoNode>()
@@ -99,6 +104,15 @@ export function buildTopology(
     edges.push({ id: `${u.pipeline}~>${cid}`, from: u.pipeline, to: cid, kind: 'cache', operators: u.operators })
   }
 
+  // Multilevel cache links: composer → each referenced layer (phantom if undeclared).
+  for (const link of cacheLinks) {
+    const toId = cacheId(link.to)
+    if (!nodes.has(toId)) {
+      nodes.set(toId, { id: toId, kind: 'cache', label: link.to, cacheName: link.to, undeclared: true, layer: 0, x: 0, y: 0 })
+    }
+    edges.push({ id: `${cacheId(link.from)}=>${toId}`, from: cacheId(link.from), to: toId, kind: 'cacheLink', level: link.level })
+  }
+
   return { nodes: [...nodes.values()], edges, width: 0, height: 0 }
 }
 
@@ -106,7 +120,7 @@ export function buildTopology(
 export function computeLayout(topo: Topology): Topology {
   const routeNodes = topo.nodes.filter(n => n.kind !== 'cache')
   const cacheNodes = topo.nodes.filter(n => n.kind === 'cache')
-  const routeEdges = topo.edges.filter(e => e.kind !== 'cache')
+  const routeEdges = topo.edges.filter(e => e.kind === 'route')
 
   const outgoing = new Map<string, string[]>()
   const indeg = new Map<string, number>()

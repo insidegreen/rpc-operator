@@ -115,3 +115,52 @@ describe('buildTopology with caches', () => {
     expect(cacheY).toBeGreaterThan(routeMaxY)
   })
 })
+
+describe('buildTopology with cache links', () => {
+  function projWithLevels(): PipelineProject {
+    return {
+      metadata: { name: 'orders', namespace: 'default' },
+      spec: {
+        cacheResources: [
+          { name: 'leveled', config: { multilevel: ['hot', 'kv'] } },
+          { name: 'hot', config: { memory: {} } },
+          { name: 'kv', natsKV: {} },
+        ],
+      },
+    }
+  }
+
+  it('adds a cacheLink edge per referenced layer, carrying its level', () => {
+    const t = buildTopology(projWithLevels(), [], [], [
+      { from: 'leveled', to: 'hot', level: 1 },
+      { from: 'leveled', to: 'kv', level: 2 },
+    ])
+    const links = t.edges.filter(e => e.kind === 'cacheLink')
+    expect(links).toEqual([
+      expect.objectContaining({ from: 'cache:leveled', to: 'cache:hot', level: 1 }),
+      expect.objectContaining({ from: 'cache:leveled', to: 'cache:kv', level: 2 }),
+    ])
+  })
+
+  it('marks a referenced-but-undeclared layer as a phantom node', () => {
+    const t = buildTopology(
+      { metadata: { name: 'orders', namespace: 'default' },
+        spec: { cacheResources: [{ name: 'leveled', config: { multilevel: ['ghost'] } }] } },
+      [], [], [{ from: 'leveled', to: 'ghost', level: 1 }])
+    const ghost = t.nodes.find(n => n.id === 'cache:ghost')
+    expect(ghost).toMatchObject({ kind: 'cache', cacheName: 'ghost', undeclared: true })
+  })
+
+  it('excludes cacheLink edges from route layering', () => {
+    const t = computeLayout(buildTopology(
+      { metadata: { name: 'orders', namespace: 'default' },
+        spec: {
+          routes: [{ name: 'fan', from: 'ingest', to: [{ pipeline: 'warehouse' }] }],
+          cacheResources: [{ name: 'leveled', config: { multilevel: ['hot'] } }, { name: 'hot', config: { memory: {} } }],
+        } },
+      ['ingest', 'warehouse'], [], [{ from: 'leveled', to: 'hot', level: 1 }]))
+    const x = (id: string) => t.nodes.find(n => n.id === id)!.x
+    expect(x('ingest')).toBeLessThan(x('route:fan'))
+    expect(x('route:fan')).toBeLessThan(x('warehouse'))
+  })
+})
