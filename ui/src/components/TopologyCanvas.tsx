@@ -46,11 +46,35 @@ export function TopologyCanvas({ topology, selectedId, onSelect }: Props) {
     return () => el.removeEventListener('wheel', onWheel)
   }, [])
 
+  const panRef = useRef<{ startX: number; startY: number; tx: number; ty: number } | null>(null)
+  const [panning, setPanning] = useState(false)
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if ((e.target as Element).closest('[data-node]')) return  // let the node handle its click
+    e.currentTarget.setPointerCapture?.(e.pointerId)  // optional: jsdom may not implement it
+    panRef.current = { startX: e.clientX, startY: e.clientY, tx: view.tx, ty: view.ty }
+    setPanning(true)
+  }
+  const onPointerMove = (e: React.PointerEvent) => {
+    const p = panRef.current
+    if (!p) return
+    setView(v => ({ ...v, tx: p.tx + (e.clientX - p.startX), ty: p.ty + (e.clientY - p.startY) }))
+  }
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (!panRef.current) return
+    panRef.current = null
+    setPanning(false)
+    e.currentTarget.releasePointerCapture?.(e.pointerId)
+  }
+
   return (
     <div ref={containerRef} data-testid="topology-viewport"
          style={{ position: 'relative', height: 'clamp(360px, 72vh, 900px)',
-                  overflow: 'hidden', background: '#fcfcfd', borderRadius: 8 }}>
-      <svg width="100%" height="100%" style={{ display: 'block' }}>
+                  overflow: 'hidden', background: '#fcfcfd', borderRadius: 8,
+                  cursor: panning ? 'grabbing' : 'grab' }}>
+      <svg width="100%" height="100%" style={{ display: 'block' }}
+           onPointerDown={onPointerDown} onPointerMove={onPointerMove}
+           onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8" />

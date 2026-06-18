@@ -100,4 +100,27 @@ describe('TopologyCanvas zoom', () => {
     fireEvent.click(screen.getByText('ingest'))
     expect(onSelect).toHaveBeenCalledWith('ingest')
   })
+
+  it('pans the transform when dragging the empty canvas', () => {
+    const topo = computeLayout(buildTopology(project))
+    const { container } = render(<TopologyCanvas topology={topo} selectedId={null} onSelect={() => {}} />)
+    const svg = container.querySelector('svg')!
+    const transformOf = () => container.querySelector('svg > g[transform]')!.getAttribute('transform')!
+    // pointerdown on the svg background (no data-node ancestor), then move 40,25
+    fireEvent.pointerDown(svg, { clientX: 10, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(svg, { clientX: 50, clientY: 35, pointerId: 1 })
+    fireEvent.pointerUp(svg, { pointerId: 1 })
+    expect(transformOf()).toBe('translate(40,25) scale(1)')
+  })
+
+  it('does not pan when the drag starts on a node', () => {
+    const topo = computeLayout(buildTopology(project))
+    const { container } = render(<TopologyCanvas topology={topo} selectedId={null} onSelect={() => {}} />)
+    const transformOf = () => container.querySelector('svg > g[transform]')!.getAttribute('transform')!
+    const node = container.querySelector('[data-node]')!
+    fireEvent.pointerDown(node, { clientX: 10, clientY: 10, pointerId: 1 })
+    fireEvent.pointerMove(container.querySelector('svg')!, { clientX: 50, clientY: 35, pointerId: 1 })
+    fireEvent.pointerUp(container.querySelector('svg')!, { pointerId: 1 })
+    expect(transformOf()).toBe('translate(0,0) scale(1)')
+  })
 })
