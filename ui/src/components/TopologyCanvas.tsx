@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { NODE_W, NODE_H, type Topology, type TopoNode } from '../topology'
+import { type ViewTransform } from '../panZoom'
 
 interface Props {
   topology: Topology
@@ -12,88 +14,94 @@ export function TopologyCanvas({ topology, selectedId, onSelect }: Props) {
   const w = topology.width + PAD * 2
   const h = Math.max(topology.height + PAD * 2, NODE_H + PAD * 2)
   const pos = new Map(topology.nodes.map(n => [n.id, n]))
+  const [view] = useState<ViewTransform>({ k: 1, tx: 0, ty: 0 })
 
   return (
-    <svg width="100%" viewBox={`0 0 ${w} ${h}`} style={{ minHeight: 240, background: '#fcfcfd', borderRadius: 8 }}>
-      <defs>
-        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8" />
-        </marker>
-        <marker id="cacheArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-          <path d="M0,0 L10,5 L0,10 z" fill="#10b981" />
-        </marker>
-      </defs>
+    <div data-testid="topology-viewport"
+         style={{ position: 'relative', height: 'clamp(360px, 72vh, 900px)',
+                  overflow: 'hidden', background: '#fcfcfd', borderRadius: 8 }}>
+      <svg width="100%" height="100%" style={{ display: 'block' }}>
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8" />
+          </marker>
+          <marker id="cacheArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#10b981" />
+          </marker>
+        </defs>
+        <g transform={`translate(${view.tx},${view.ty}) scale(${view.k})`}>
+          {/* edges first so boxes paint on top */}
+          {topology.edges.map(e => {
+            const a = pos.get(e.from); const b = pos.get(e.to)
+            if (!a || !b) return null
 
-      {/* edges first so boxes paint on top */}
-      {topology.edges.map(e => {
-        const a = pos.get(e.from); const b = pos.get(e.to)
-        if (!a || !b) return null
+            if (e.kind === 'cacheLink') {
+              // composer cache → layer cache, both in the band: arc bowing above the row.
+              // Clamp the apex so a caches-only project (no route band above) doesn't bow
+              // the arc/label above the viewBox top and get clipped.
+              const x1 = a.x + NODE_W / 2 + PAD, y1 = a.y + PAD
+              const x2 = b.x + NODE_W / 2 + PAD, y2 = b.y + PAD
+              const cy = Math.max(4, Math.min(y1, y2) - 40)
+              const d = `M ${x1},${y1} Q ${(x1 + x2) / 2},${cy} ${x2},${y2}`
+              return (
+                <g key={e.id}>
+                  <path d={d} fill="none" stroke="#10b981" strokeWidth={1.5} strokeDasharray="5 4" markerEnd="url(#cacheArrow)" />
+                  {e.level != null && (
+                    <text x={(x1 + x2) / 2} y={cy + 12} textAnchor="middle" fontSize={10} fontWeight={600} fill="#047857">
+                      L{e.level}
+                    </text>
+                  )}
+                </g>
+              )
+            }
 
-        if (e.kind === 'cacheLink') {
-          // composer cache → layer cache, both in the band: arc bowing above the row.
-          // Clamp the apex so a caches-only project (no route band above) doesn't bow
-          // the arc/label above the viewBox top and get clipped.
-          const x1 = a.x + NODE_W / 2 + PAD, y1 = a.y + PAD
-          const x2 = b.x + NODE_W / 2 + PAD, y2 = b.y + PAD
-          const cy = Math.max(4, Math.min(y1, y2) - 40)
-          const d = `M ${x1},${y1} Q ${(x1 + x2) / 2},${cy} ${x2},${y2}`
-          return (
-            <g key={e.id}>
-              <path d={d} fill="none" stroke="#10b981" strokeWidth={1.5} strokeDasharray="5 4" markerEnd="url(#cacheArrow)" />
-              {e.level != null && (
-                <text x={(x1 + x2) / 2} y={cy + 12} textAnchor="middle" fontSize={10} fontWeight={600} fill="#047857">
-                  L{e.level}
-                </text>
-              )}
-            </g>
-          )
-        }
+            if (e.kind === 'cache') {
+              // pipeline (above) → cache (below): vertical-ish dashed bezier
+              const x1 = a.x + NODE_W / 2 + PAD, y1 = a.y + NODE_H + PAD
+              const x2 = b.x + NODE_W / 2 + PAD, y2 = b.y + PAD
+              const my = (y1 + y2) / 2
+              const d = `M ${x1},${y1} C ${x1},${my} ${x2},${my} ${x2},${y2}`
+              return (
+                <g key={e.id}>
+                  <path d={d} fill="none" stroke="#10b981" strokeWidth={1.5} strokeDasharray="5 4" markerEnd="url(#cacheArrow)" />
+                  {e.operators && e.operators.length > 0 && (
+                    <text x={(x1 + x2) / 2} y={my - 4} textAnchor="middle" fontSize={10} fill="#047857">
+                      {e.operators.join(', ')}
+                    </text>
+                  )}
+                </g>
+              )
+            }
 
-        if (e.kind === 'cache') {
-          // pipeline (above) → cache (below): vertical-ish dashed bezier
-          const x1 = a.x + NODE_W / 2 + PAD, y1 = a.y + NODE_H + PAD
-          const x2 = b.x + NODE_W / 2 + PAD, y2 = b.y + PAD
-          const my = (y1 + y2) / 2
-          const d = `M ${x1},${y1} C ${x1},${my} ${x2},${my} ${x2},${y2}`
-          return (
-            <g key={e.id}>
-              <path d={d} fill="none" stroke="#10b981" strokeWidth={1.5} strokeDasharray="5 4" markerEnd="url(#cacheArrow)" />
-              {e.operators && e.operators.length > 0 && (
-                <text x={(x1 + x2) / 2} y={my - 4} textAnchor="middle" fontSize={10} fill="#047857">
-                  {e.operators.join(', ')}
-                </text>
-              )}
-            </g>
-          )
-        }
+            const x1 = a.x + NODE_W + PAD, y1 = a.y + NODE_H / 2 + PAD
+            const x2 = b.x + PAD, y2 = b.y + NODE_H / 2 + PAD
+            const mx = (x1 + x2) / 2
+            const d = `M ${x1},${y1} C ${mx},${y1} ${mx},${y2} ${x2},${y2}`
+            return (
+              <g key={e.id}>
+                <path d={d} fill="none" stroke="#94a3b8" strokeWidth={1.5} markerEnd="url(#arrow)" />
+                {e.predicate && (
+                  <text x={mx} y={(y1 + y2) / 2 - 6} textAnchor="middle" fontSize={10} fill="#64748b">
+                    when:{truncate(e.predicate, 22)}
+                  </text>
+                )}
+              </g>
+            )
+          })}
 
-        const x1 = a.x + NODE_W + PAD, y1 = a.y + NODE_H / 2 + PAD
-        const x2 = b.x + PAD, y2 = b.y + NODE_H / 2 + PAD
-        const mx = (x1 + x2) / 2
-        const d = `M ${x1},${y1} C ${mx},${y1} ${mx},${y2} ${x2},${y2}`
-        return (
-          <g key={e.id}>
-            <path d={d} fill="none" stroke="#94a3b8" strokeWidth={1.5} markerEnd="url(#arrow)" />
-            {e.predicate && (
-              <text x={mx} y={(y1 + y2) / 2 - 6} textAnchor="middle" fontSize={10} fill="#64748b">
-                when:{truncate(e.predicate, 22)}
-              </text>
-            )}
-          </g>
-        )
-      })}
-
-      {topology.nodes.map(n => {
-        if (n.kind !== 'cache') {
-          return <NodeBox key={n.id} node={n} selected={n.id === selectedId} onSelect={onSelect} />
-        }
-        const used = topology.edges.some(e => (e.kind === 'cache' || e.kind === 'cacheLink') && e.to === n.id)
-        return (
-          <CacheNode key={n.id} node={n} unused={!used && !n.undeclared}
-                     selected={n.id === selectedId} onSelect={onSelect} />
-        )
-      })}
-    </svg>
+          {topology.nodes.map(n => {
+            if (n.kind !== 'cache') {
+              return <NodeBox key={n.id} node={n} selected={n.id === selectedId} onSelect={onSelect} />
+            }
+            const used = topology.edges.some(e => (e.kind === 'cache' || e.kind === 'cacheLink') && e.to === n.id)
+            return (
+              <CacheNode key={n.id} node={n} unused={!used && !n.undeclared}
+                         selected={n.id === selectedId} onSelect={onSelect} />
+            )
+          })}
+        </g>
+      </svg>
+    </div>
   )
 }
 
@@ -105,6 +113,7 @@ function NodeBox({ node, selected, onSelect }: { node: TopoNode; selected: boole
   const rx = isRouter ? NODE_H / 2 : 8 // amber pill vs blue rectangle (spec)
   return (
     <g
+      data-node
       data-selected={selected}
       onClick={() => onSelect(node.id)}
       style={{ cursor: 'pointer' }}
@@ -132,7 +141,7 @@ function CacheNode({ node, unused, selected, onSelect }: {
   const top = y + ry
   const bottom = y + NODE_H - ry
   return (
-    <g data-selected={selected} onClick={() => onSelect(node.id)} style={{ cursor: 'pointer' }}>
+    <g data-node data-selected={selected} onClick={() => onSelect(node.id)} style={{ cursor: 'pointer' }}>
       <path d={`M${x},${top} L${x},${bottom} A${NODE_W / 2},${ry} 0 0 0 ${x + NODE_W},${bottom} L${x + NODE_W},${top}`}
             fill={fill} stroke={stroke} strokeWidth={selected ? 2.5 : 1.5}
             strokeDasharray={undeclared ? '4 3' : undefined} />

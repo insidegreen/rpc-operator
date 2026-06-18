@@ -24,6 +24,14 @@ describe('TopologyCanvas', () => {
       <TopologyCanvas topology={topo} selectedId="ingest" onSelect={() => {}} />)
     expect(container.querySelector('[data-selected="true"]')).toBeTruthy()
   })
+
+  it('wraps content in a transform group', () => {
+    const topo = computeLayout(buildTopology(project))
+    const { container } = render(<TopologyCanvas topology={topo} selectedId={null} onSelect={() => {}} />)
+    const g = container.querySelector('svg > g[transform]')
+    expect(g).toBeTruthy()
+    expect(g!.getAttribute('transform')).toMatch(/translate\(.*\) scale\(.*\)/)
+  })
 })
 
 describe('TopologyCanvas caches', () => {
