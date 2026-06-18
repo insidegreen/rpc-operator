@@ -10,8 +10,11 @@ import (
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 )
 
-// fanOutSubject is the expected NATS subject for the sample "fan-out" route.
-const fanOutSubject = "rpc.orders.fan-out"
+const (
+	// fanOutSubject is the expected NATS subject for the sample "fan-out" route.
+	fanOutSubject   = "rpc.orders.fan-out"
+	testProjectName = "orders"
+)
 
 func sampleRoutes() []rpcv1alpha1.ProjectRoute {
 	return []rpcv1alpha1.ProjectRoute{
@@ -61,7 +64,7 @@ func TestRoleOf(t *testing.T) {
 
 func TestPlanFor_SourceAndSink(t *testing.T) {
 	proj := &rpcv1alpha1.PipelineProject{Spec: rpcv1alpha1.PipelineProjectSpec{Routes: sampleRoutes()}}
-	proj.Name = "orders"
+	proj.Name = testProjectName
 
 	src := PlanFor(proj, "ns", "ingest")
 	if len(src.OutgoingSubjects) != 1 || src.OutgoingSubjects[0] != fanOutSubject {
@@ -87,7 +90,7 @@ func pv(name, project string, hasIn, hasOut bool) PipelineView {
 
 func projWith(routes []rpcv1alpha1.ProjectRoute) *rpcv1alpha1.PipelineProject {
 	p := &rpcv1alpha1.PipelineProject{Spec: rpcv1alpha1.PipelineProjectSpec{Routes: routes}}
-	p.Name = "orders"
+	p.Name = testProjectName
 	return p
 }
 
@@ -220,7 +223,7 @@ func TestCacheBucket(t *testing.T) {
 
 func TestValidateProject_CacheResourceRequiresExactlyOneVariant(t *testing.T) {
 	bad := &rpcv1alpha1.PipelineProject{}
-	bad.Name = "orders"
+	bad.Name = testProjectName
 	bad.Spec.CacheResources = []rpcv1alpha1.ProjectCacheResource{{Name: "c1"}} // neither set
 	errs := ValidateProject(bad, map[string]PipelineView{})
 	if len(errs) == 0 {

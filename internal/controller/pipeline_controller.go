@@ -46,6 +46,7 @@ import (
 const (
 	finalizerName      = "rpc.operator.io/finalizer"
 	specHashAnnotation = "rpc.operator.io/spec-hash"
+	conditionTypeReady = "Ready"
 )
 
 // secretNameIndex is the IndexField key for efficient Secret → Pipeline lookup.
@@ -269,42 +270,42 @@ func deriveCondition(pod *corev1.Pod, phase rpcv1alpha1.PipelinePhase) metav1.Co
 	switch {
 	case reason == "ImagePullBackOff" || reason == "ErrImagePull":
 		return metav1.Condition{
-			Type:    "Ready",
+			Type:    conditionTypeReady,
 			Status:  metav1.ConditionFalse,
 			Reason:  "ImagePullBackOff",
 			Message: "Container image cannot be pulled: " + reason,
 		}
 	case reason == "CrashLoopBackOff":
 		return metav1.Condition{
-			Type:    "Ready",
+			Type:    conditionTypeReady,
 			Status:  metav1.ConditionFalse,
 			Reason:  "CrashLoopBackOff",
 			Message: "Container is crash-looping",
 		}
 	case phase == rpcv1alpha1.PhaseRunning:
 		return metav1.Condition{
-			Type:    "Ready",
+			Type:    conditionTypeReady,
 			Status:  metav1.ConditionTrue,
 			Reason:  "Running",
 			Message: "Pipeline pod is running",
 		}
 	case phase == rpcv1alpha1.PhaseStopped:
 		return metav1.Condition{
-			Type:    "Ready",
+			Type:    conditionTypeReady,
 			Status:  metav1.ConditionFalse,
 			Reason:  "Completed",
 			Message: "Pipeline pod has completed",
 		}
 	case phase == rpcv1alpha1.PhaseFailed:
 		return metav1.Condition{
-			Type:    "Ready",
+			Type:    conditionTypeReady,
 			Status:  metav1.ConditionFalse,
 			Reason:  "PodFailed",
 			Message: "Pipeline pod has failed",
 		}
 	default:
 		return metav1.Condition{
-			Type:    "Ready",
+			Type:    conditionTypeReady,
 			Status:  metav1.ConditionUnknown,
 			Reason:  "Pending",
 			Message: "Pipeline pod is pending",

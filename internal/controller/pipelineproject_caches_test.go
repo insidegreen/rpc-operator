@@ -56,13 +56,13 @@ func mustCreate(t *testing.T, c client.Client, obj client.Object) {
 	}
 }
 
-// newReadyClusterPod returns a Ready pod labelled for the project's child cluster.
-func newReadyClusterPod(project, ns string, ordinal int) *corev1.Pod {
-	clusterName := projectChildClusterName(project)
+// newReadyClusterPod returns a Ready pod labelled for the "orders" project's child cluster in the "default" namespace.
+func newReadyClusterPod(ordinal int) *corev1.Pod {
+	clusterName := projectChildClusterName("orders")
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-%d", clusterName, ordinal),
-			Namespace: ns,
+			Namespace: "default",
 			Labels:    map[string]string{clusterLabelKey: clusterName},
 		},
 		Status: corev1.PodStatus{Conditions: []corev1.PodCondition{
@@ -86,8 +86,8 @@ func TestReconcileCacheResources_ManagedPushedToAllInstances(t *testing.T) {
 		},
 	}
 	mustCreate(t, c, project)
-	mustCreate(t, c, newReadyClusterPod("orders", ns, 0))
-	mustCreate(t, c, newReadyClusterPod("orders", ns, 1))
+	mustCreate(t, c, newReadyClusterPod(0))
+	mustCreate(t, c, newReadyClusterPod(1))
 
 	statuses, err := r.reconcileCacheResources(context.Background(), project)
 	if err != nil {
@@ -125,7 +125,7 @@ func TestReconcileCacheResources_RemovalDeletesBucketFromInstances(t *testing.T)
 		},
 	}
 	mustCreate(t, c, project)
-	mustCreate(t, c, newReadyClusterPod("orders", ns, 0))
+	mustCreate(t, c, newReadyClusterPod(0))
 
 	url := clusterPodURL(projectChildClusterName("orders"), ns, 0)
 	ctx := context.Background()
@@ -157,7 +157,7 @@ func TestReconcileCacheResources_RepushAfterPodRestart(t *testing.T) {
 		}},
 	}
 	mustCreate(t, c, project)
-	mustCreate(t, c, newReadyClusterPod("orders", ns, 0))
+	mustCreate(t, c, newReadyClusterPod(0))
 
 	ctx := context.Background()
 	if _, err := r.reconcileCacheResources(ctx, project); err != nil {
@@ -188,7 +188,7 @@ func TestReconcileCacheResources_PushRejectedMarksFailed(t *testing.T) {
 		}},
 	}
 	mustCreate(t, c, project)
-	mustCreate(t, c, newReadyClusterPod("orders", ns, 0))
+	mustCreate(t, c, newReadyClusterPod(0))
 
 	statuses, err := r.reconcileCacheResources(context.Background(), project)
 	if err != nil {

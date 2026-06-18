@@ -60,7 +60,7 @@ func TestDeriveCondition(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			c := deriveCondition(tc.pod, tc.phase)
-			if c.Type != "Ready" {
+			if c.Type != conditionTypeReady {
 				t.Errorf("Type = %q, want Ready", c.Type)
 			}
 			if c.Status != tc.wantStatus {

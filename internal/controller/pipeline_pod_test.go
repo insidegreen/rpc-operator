@@ -53,7 +53,7 @@ func TestBuildPodSpec_Defaults(t *testing.T) {
 	if c.Args[0] != "run" || c.Args[1] != "/etc/rpc/pipeline.yaml" {
 		t.Errorf("unexpected args: %v", c.Args)
 	}
-	if c.LivenessProbe == nil || c.LivenessProbe.HTTPGet.Path != "/ping" {
+	if c.LivenessProbe == nil || c.LivenessProbe.HTTPGet.Path != livenessProbeePath {
 		t.Errorf("liveness probe missing or wrong path")
 	}
 	if c.ReadinessProbe == nil || c.ReadinessProbe.HTTPGet.Path != "/ready" {

@@ -153,7 +153,7 @@ func TestHandlerConnections_Down(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.Input != "down" || body.Output != "down" {
+	if body.Input != api.ConnStateDown || body.Output != api.ConnStateDown {
 		t.Errorf("expected down/down, got %+v", body)
 	}
 }
@@ -178,7 +178,7 @@ func TestHandlerConnections_EmptyVector_Unknown(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.Input != "unknown" || body.Output != "unknown" {
+	if body.Input != api.ConnStateUnknown || body.Output != api.ConnStateUnknown {
 		t.Errorf("expected unknown/unknown, got %+v", body)
 	}
 }

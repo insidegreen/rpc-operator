@@ -7,10 +7,12 @@ import (
 	"time"
 )
 
+const testNatsURL = "nats://orders-nats.ns.svc:4222"
+
 func TestFakeManager_EnsureAndDelete(t *testing.T) {
 	f := NewFakeManager()
 	ctx := context.Background()
-	url := "nats://orders-nats.ns.svc:4222"
+	url := testNatsURL
 
 	if err := f.EnsureStream(ctx, url, "rpc-orders-a", "rpc.orders.a", Retention{MaxAge: time.Hour}); err != nil {
 		t.Fatal(err)
@@ -34,7 +36,7 @@ func TestFakeManager_EnsureFnFailureNotRecorded(t *testing.T) {
 	f.EnsureFn = func(stream, subject string) error {
 		return errors.New("boom")
 	}
-	url := "nats://orders-nats.ns.svc:4222"
+	url := testNatsURL
 	if err := f.EnsureStream(context.Background(), url, "rpc-orders-a", "rpc.orders.a", Retention{}); err == nil {
 		t.Fatal("expected injected error")
 	}

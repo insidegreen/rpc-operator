@@ -19,7 +19,7 @@ import (
 // buckets (keyed natsURL|name) and supports failure injection.
 type FakeManager struct {
 	mu         sync.Mutex
-	Streams    map[string]string  // "natsURL|stream" -> subject
+	Streams    map[string]string   // "natsURL|stream" -> subject
 	Buckets    map[string]struct{} // "natsURL|bucket"
 	EnsureFn   func(stream, subject string) error
 	EnsureKVFn func(bucket string) error

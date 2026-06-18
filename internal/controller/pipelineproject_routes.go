@@ -24,6 +24,11 @@ import (
 	"github.com/insidegreen/rpc-operator-claude/internal/projectroute"
 )
 
+const (
+	projectRoutePhaseReady  = "Ready"
+	projectRoutePhaseFailed = "Failed"
+)
+
 // validateProjectRoutes lists the namespace's pipelines and validates the
 // project's route graph. Returns the first error message (verbatim from the
 // spec) or "" when valid.
@@ -76,9 +81,9 @@ func (r *PipelineProjectReconciler) reconcileRouteStreams(ctx context.Context, p
 		if route.Retention != nil {
 			ret = mergeRetention(defaultRet, route.Retention)
 		}
-		st := rpcv1alpha1.ProjectRouteStatus{Name: route.Name, Subject: subject, Stream: stream, Phase: "Ready"}
+		st := rpcv1alpha1.ProjectRouteStatus{Name: route.Name, Subject: subject, Stream: stream, Phase: projectRoutePhaseReady}
 		if err := r.Streams.EnsureStream(ctx, natsURL, stream, subject, ret); err != nil {
-			st.Phase = "Failed"
+			st.Phase = projectRoutePhaseFailed
 			st.Conditions = []metav1.Condition{{
 				Type: "Ready", Status: metav1.ConditionFalse, Reason: "StreamError",
 				Message: err.Error(), LastTransitionTime: metav1.Now(),

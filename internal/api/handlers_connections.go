@@ -18,6 +18,12 @@ import (
 // Values: "up" | "down" | "unknown".
 type ConnState = string
 
+const (
+	ConnStateUp      = "up"
+	ConnStateDown    = "down"
+	ConnStateUnknown = "unknown"
+)
+
 // ConnectionsResponse is the single-pipeline connection endpoint response.
 type ConnectionsResponse struct {
 	Input  ConnState `json:"input"`
@@ -110,14 +116,14 @@ func (s *Server) queryPrometheusInstant(ctx context.Context, promQL string) ([]I
 // Empty vector → "unknown"; any value > 0 → "down" (actively failing); == 0 → "up".
 func connStateFromSamples(samples []InstantSample) ConnState {
 	if len(samples) == 0 {
-		return "unknown"
+		return ConnStateUnknown
 	}
 	for _, s := range samples {
 		if s.Value > 0 {
-			return "down"
+			return ConnStateDown
 		}
 	}
-	return "up"
+	return ConnStateUp
 }
 
 // samplesMap converts a batch failure-rate vector to a (pod+\x00+stream → ConnState) lookup.
@@ -170,11 +176,11 @@ func (s *Server) handleConnections(w http.ResponseWriter, r *http.Request) {
 	inputSamples, inputErr := s.queryPrometheusInstant(r.Context(), buildConnectionQuery("input_connection_failed", pod, stream))
 	outputSamples, outputErr := s.queryPrometheusInstant(r.Context(), buildConnectionQuery("output_connection_failed", pod, stream))
 
-	inputState := "unknown"
+	inputState := ConnStateUnknown
 	if inputErr == nil {
 		inputState = connStateFromSamples(inputSamples)
 	}
-	outputState := "unknown"
+	outputState := ConnStateUnknown
 	if outputErr == nil {
 		outputState = connStateFromSamples(outputSamples)
 	}

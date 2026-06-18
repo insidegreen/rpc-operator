@@ -18,11 +18,13 @@ import (
 )
 
 const (
-	defaultImage    = "docker.redpanda.com/redpandadata/connect:4"
-	configMountPath = "/etc/rpc"
-	configFileName  = "pipeline.yaml"
-	httpPort        = 4195
-	rpcUID          = int64(10001)
+	defaultImage        = "docker.redpanda.com/redpandadata/connect:4"
+	configMountPath     = "/etc/rpc"
+	configFileName      = "pipeline.yaml"
+	httpPort            = 4195
+	rpcUID              = int64(10001)
+	livenessProbeePath  = "/ping"
+	readinessProbesPath = "/ready"
 )
 
 func buildPodSpec(cmName, image string, envVars []corev1.EnvVar) corev1.PodSpec {
@@ -55,7 +57,7 @@ func buildPodSpec(cmName, image string, envVars []corev1.EnvVar) corev1.PodSpec 
 			}},
 			LivenessProbe: &corev1.Probe{
 				ProbeHandler: corev1.ProbeHandler{HTTPGet: &corev1.HTTPGetAction{
-					Path: "/ping",
+					Path: livenessProbeePath,
 					Port: intstr.FromString("http"),
 				}},
 				InitialDelaySeconds: 5,
@@ -63,7 +65,7 @@ func buildPodSpec(cmName, image string, envVars []corev1.EnvVar) corev1.PodSpec 
 			},
 			ReadinessProbe: &corev1.Probe{
 				ProbeHandler: corev1.ProbeHandler{HTTPGet: &corev1.HTTPGetAction{
-					Path: "/ready",
+					Path: readinessProbesPath,
 					Port: intstr.FromString("http"),
 				}},
 				InitialDelaySeconds: 2,
