@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { TopologyCanvas } from './TopologyCanvas'
 import { buildTopology, computeLayout } from '../topology'
 import type { PipelineProject } from '../types'
@@ -68,5 +68,36 @@ describe('TopologyCanvas caches', () => {
     const topo = computeLayout(buildTopology(proj, [], [], [{ from: 'leveled', to: 'hot', level: 1 }]))
     render(<TopologyCanvas topology={topo} selectedId={null} onSelect={() => {}} />)
     expect(screen.getByText('L1')).toBeInTheDocument()
+  })
+})
+
+describe('TopologyCanvas zoom', () => {
+  it('renders the zoom control bar', () => {
+    const topo = computeLayout(buildTopology(project))
+    render(<TopologyCanvas topology={topo} selectedId={null} onSelect={() => {}} />)
+    expect(screen.getByLabelText('Zoom in')).toBeInTheDocument()
+    expect(screen.getByLabelText('Zoom out')).toBeInTheDocument()
+    expect(screen.getByLabelText('Fit to view')).toBeInTheDocument()
+  })
+
+  it('changes the transform scale on wheel-up and restores it on Fit', () => {
+    const topo = computeLayout(buildTopology(project))
+    const { container } = render(<TopologyCanvas topology={topo} selectedId={null} onSelect={() => {}} />)
+    const viewport = screen.getByTestId('topology-viewport')
+    const transformOf = () => container.querySelector('svg > g[transform]')!.getAttribute('transform')!
+    const before = transformOf()
+    fireEvent.wheel(viewport, { deltaY: -10, clientX: 0, clientY: 0 })
+    expect(transformOf()).not.toBe(before)
+    expect(transformOf()).toMatch(/scale\(1\.1\b/)
+    fireEvent.click(screen.getByLabelText('Fit to view'))
+    expect(transformOf()).toBe('translate(0,0) scale(1)')   // jsdom viewport is 0×0 → identity fit
+  })
+
+  it('still selects a node on click (pan does not swallow it)', () => {
+    const topo = computeLayout(buildTopology(project))
+    const onSelect = vi.fn()
+    render(<TopologyCanvas topology={topo} selectedId={null} onSelect={onSelect} />)
+    fireEvent.click(screen.getByText('ingest'))
+    expect(onSelect).toHaveBeenCalledWith('ingest')
   })
 })

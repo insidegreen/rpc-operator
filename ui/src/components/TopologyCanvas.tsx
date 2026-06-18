@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { NODE_W, NODE_H, type Topology, type TopoNode } from '../topology'
-import { type ViewTransform } from '../panZoom'
+import { type ViewTransform, ZOOM_BOUNDS, zoomAtPoint, stepZoom, computeFit } from '../panZoom'
 
 interface Props {
   topology: Topology
@@ -14,10 +14,40 @@ export function TopologyCanvas({ topology, selectedId, onSelect }: Props) {
   const w = topology.width + PAD * 2
   const h = Math.max(topology.height + PAD * 2, NODE_H + PAD * 2)
   const pos = new Map(topology.nodes.map(n => [n.id, n]))
-  const [view] = useState<ViewTransform>({ k: 1, tx: 0, ty: 0 })
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [view, setView] = useState<ViewTransform>({ k: 1, tx: 0, ty: 0 })
+
+  const viewportSize = () => {
+    const r = containerRef.current?.getBoundingClientRect()
+    return { w: r?.width ?? 0, h: r?.height ?? 0 }
+  }
+
+  const fit = useCallback(() => {
+    setView(computeFit({ w, h }, viewportSize(), ZOOM_BOUNDS))
+  }, [w, h])
+
+  // Fit on mount and whenever the topology size changes (project switch); node
+  // selection does not change w/h, so the view persists across selections.
+  useLayoutEffect(() => { fit() }, [fit])
+
+  // Native non-passive wheel listener so we can preventDefault (stop the page scrolling).
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const r = el.getBoundingClientRect()
+      const cursor = { x: e.clientX - r.left, y: e.clientY - r.top }
+      const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1
+      setView(v => zoomAtPoint(v, cursor, factor, ZOOM_BOUNDS))
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
 
   return (
-    <div data-testid="topology-viewport"
+    <div ref={containerRef} data-testid="topology-viewport"
          style={{ position: 'relative', height: 'clamp(360px, 72vh, 900px)',
                   overflow: 'hidden', background: '#fcfcfd', borderRadius: 8 }}>
       <svg width="100%" height="100%" style={{ display: 'block' }}>
@@ -101,6 +131,13 @@ export function TopologyCanvas({ topology, selectedId, onSelect }: Props) {
           })}
         </g>
       </svg>
+      <div style={controlBarStyle}>
+        <button aria-label="Zoom in" style={ctrlBtn}
+                onClick={() => setView(v => stepZoom(v, viewportSize(), 1.2, ZOOM_BOUNDS))}>+</button>
+        <button aria-label="Zoom out" style={ctrlBtn}
+                onClick={() => setView(v => stepZoom(v, viewportSize(), 1 / 1.2, ZOOM_BOUNDS))}>−</button>
+        <button aria-label="Fit to view" style={ctrlBtn} onClick={fit}>⤢</button>
+      </div>
     </div>
   )
 }
@@ -164,4 +201,12 @@ function CacheNode({ node, unused, selected, onSelect }: {
 
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n - 1) + '…' : s
+}
+
+const controlBarStyle: React.CSSProperties = {
+  position: 'absolute', bottom: 12, left: 12, display: 'flex', gap: 6,
+}
+const ctrlBtn: React.CSSProperties = {
+  width: 32, height: 32, borderRadius: 6, border: '1px solid #cbd5e1',
+  background: '#fff', cursor: 'pointer', fontSize: 16, lineHeight: 1, color: '#334155',
 }
