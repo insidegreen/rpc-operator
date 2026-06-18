@@ -376,7 +376,7 @@ export default function App() {
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24, fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ padding: '24px 32px', fontFamily: 'system-ui, sans-serif' }}>
       <Toaster position="bottom-right" richColors />
       {readOnly && (
         <div style={readOnlyBannerStyle}>
