@@ -18,14 +18,14 @@ export function TopologyCanvas({ topology, selectedId, onSelect }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<ViewTransform>({ k: 1, tx: 0, ty: 0 })
 
-  const viewportSize = () => {
+  const viewportSize = useCallback(() => {
     const r = containerRef.current?.getBoundingClientRect()
     return { w: r?.width ?? 0, h: r?.height ?? 0 }
-  }
+  }, [])
 
   const fit = useCallback(() => {
     setView(computeFit({ w, h }, viewportSize(), ZOOM_BOUNDS))
-  }, [w, h])
+  }, [w, h, viewportSize])
 
   // Fit on mount and whenever the topology size changes (project switch); node
   // selection does not change w/h, so the view persists across selections.
@@ -156,11 +156,11 @@ export function TopologyCanvas({ topology, selectedId, onSelect }: Props) {
         </g>
       </svg>
       <div style={controlBarStyle}>
-        <button aria-label="Zoom in" style={ctrlBtn}
+        <button type="button" aria-label="Zoom in" style={ctrlBtn}
                 onClick={() => setView(v => stepZoom(v, viewportSize(), 1.2, ZOOM_BOUNDS))}>+</button>
-        <button aria-label="Zoom out" style={ctrlBtn}
+        <button type="button" aria-label="Zoom out" style={ctrlBtn}
                 onClick={() => setView(v => stepZoom(v, viewportSize(), 1 / 1.2, ZOOM_BOUNDS))}>−</button>
-        <button aria-label="Fit to view" style={ctrlBtn} onClick={fit}>⤢</button>
+        <button type="button" aria-label="Fit to view" style={ctrlBtn} onClick={fit}>⤢</button>
       </div>
     </div>
   )
