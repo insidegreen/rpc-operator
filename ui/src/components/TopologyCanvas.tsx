@@ -131,12 +131,19 @@ export function TopologyCanvas({ topology, selectedId, onSelect }: Props) {
             const x2 = b.x + PAD, y2 = b.y + NODE_H / 2 + PAD
             const mx = (x1 + x2) / 2
             const d = `M ${x1},${y1} C ${mx},${y1} ${mx},${y2} ${x2},${y2}`
+            const edgeText = e.routeLabel
+              ? truncate(e.routeLabel, 22)
+              : (e.predicate ? `when:${truncate(e.predicate, 22)}` : null)
+            const tip = e.routeLabel && e.predicate
+              ? `${e.routeLabel} — ${e.predicate}`
+              : (e.routeLabel || e.predicate || null)
             return (
               <g key={e.id}>
+                {tip && <title>{tip}</title>}
                 <path d={d} fill="none" stroke="#94a3b8" strokeWidth={1.5} markerEnd="url(#arrow)" />
-                {e.predicate && (
+                {edgeText && (
                   <text x={mx} y={(y1 + y2) / 2 - 6} textAnchor="middle" fontSize={10} fill="#64748b">
-                    when:{truncate(e.predicate, 22)}
+                    {edgeText}
                   </text>
                 )}
               </g>

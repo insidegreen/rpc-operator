@@ -71,6 +71,40 @@ describe('TopologyCanvas caches', () => {
   })
 })
 
+describe('TopologyCanvas route-edge labels', () => {
+  const make = (to: Array<{ pipeline: string; when?: string; label?: string }>) =>
+    computeLayout(buildTopology({
+      metadata: { name: 'orders', namespace: 'default' },
+      spec: { routes: [{ name: 'fan', from: 'ingest', to }] },
+    }))
+
+  it('shows the label (truncated) when a label is set', () => {
+    const topo = make([{ pipeline: 'alert', when: 'this.level == "high"', label: 'High-Priority EU' }])
+    render(<TopologyCanvas topology={topo} selectedId={null} onSelect={() => {}} />)
+    expect(screen.getByText('High-Priority EU')).toBeInTheDocument()
+    expect(screen.queryByText(/^when:/)).not.toBeInTheDocument()
+  })
+
+  it('falls back to when: when no label is set', () => {
+    const topo = make([{ pipeline: 'alert', when: 'this.level == "high"' }])
+    render(<TopologyCanvas topology={topo} selectedId={null} onSelect={() => {}} />)
+    expect(screen.getByText(/^when:this\.level/)).toBeInTheDocument()
+  })
+
+  it('renders no edge label when neither label nor when is set', () => {
+    const topo = make([{ pipeline: 'warehouse' }])
+    render(<TopologyCanvas topology={topo} selectedId={null} onSelect={() => {}} />)
+    expect(screen.queryByText(/^when:/)).not.toBeInTheDocument()
+  })
+
+  it('exposes the full when expression via an SVG <title> tooltip', () => {
+    const topo = make([{ pipeline: 'alert', when: 'this.level == "high"', label: 'High-Priority EU' }])
+    const { container } = render(<TopologyCanvas topology={topo} selectedId={null} onSelect={() => {}} />)
+    const titles = Array.from(container.querySelectorAll('title')).map(t => t.textContent)
+    expect(titles).toContain('High-Priority EU — this.level == "high"')
+  })
+})
+
 describe('TopologyCanvas zoom', () => {
   it('renders the zoom control bar', () => {
     const topo = computeLayout(buildTopology(project))
