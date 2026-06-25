@@ -150,6 +150,12 @@ type ProjectRouteTarget struct {
 	// (Phase 2). Empty = always deliver.
 	// +optional
 	When string `json:"when,omitempty"`
+
+	// Label is an optional human-readable description of the routing
+	// condition, shown in the tactical map instead of the raw When
+	// expression. UI-only; has no effect on routing behaviour.
+	// +optional
+	Label string `json:"label,omitempty"`
 }
 
 // ProjectCacheResource is one project-global cache resource. Exactly one of

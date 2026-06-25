@@ -289,6 +289,12 @@ spec:
                         description: ProjectRouteTarget is one consumer of a route,
                           optionally filtered.
                         properties:
+                          label:
+                            description: |-
+                              Label is an optional human-readable description of the routing
+                              condition, shown in the tactical map instead of the raw When
+                              expression. UI-only; has no effect on routing behaviour.
+                            type: string
                           pipeline:
                             description: Pipeline is the target Pipeline name in the
                               same namespace.
