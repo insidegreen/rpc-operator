@@ -32,7 +32,7 @@ func (r *PipelineReconciler) handleProjectAssigned(ctx context.Context, pipe *rp
 	if err := r.Get(ctx, client.ObjectKey{Name: pipe.Spec.ProjectRef.Name, Namespace: pipe.Namespace}, &project); err != nil {
 		if apierrors.IsNotFound(err) {
 			return r.markClusterFailed(ctx, pipe, "ProjectNotFound",
-				fmt.Sprintf("PipelineProject %q not found", pipe.Spec.ProjectRef.Name))
+				fmt.Sprintf("PipelineProject %q not found", pipe.Spec.ProjectRef.Name), 0)
 		}
 		return ctrl.Result{}, err
 	}

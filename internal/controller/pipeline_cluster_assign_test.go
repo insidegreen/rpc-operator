@@ -221,6 +221,13 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(cond).NotTo(BeNil())
 		Expect(cond.Reason).To(Equal("SecretNotFound"))
 		Expect(fake.Has("http://cs3-0.cs3."+namespace+".svc:4195", "ps3")).To(BeFalse())
+
+		// SecretNotFound is recoverable, but recovery is driven by the Secret watch,
+		// not a periodic resync — so it must requeue 0, not resyncInterval (otherwise
+		// an identical config is re-rendered and re-fetched every cycle).
+		res, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(res.RequeueAfter).To(BeZero())
 	})
 
 	It("marks Failed with StreamConfigInvalid when the streams API rejects the config", func() {
@@ -255,6 +262,13 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(cond.Status).To(Equal(metav1.ConditionFalse))
 		Expect(cond.Reason).To(Equal("StreamConfigInvalid"))
 		Expect(cond.Message).To(ContainSubstring("field inputs not recognised"))
+
+		// A permanently invalid config must NOT requeue on the resync interval: an
+		// identical config would be re-PUT and rejected forever. Recovery comes from
+		// the spec-edit watch (For(&Pipeline{})), not a periodic resync.
+		res, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(res.RequeueAfter).To(BeZero())
 	})
 
 	It("marks Pending when the cluster has no ready instances", func() {
@@ -287,6 +301,12 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		got := &rpcv1alpha1.Pipeline{}
 		Expect(k8sClient.Get(ctx, nn, got)).To(Succeed())
 		Expect(got.Status.Phase).To(Equal(rpcv1alpha1.PhaseFailed))
+
+		// ClusterNotFound has no watch to wake it, so it must requeue on the resync
+		// interval to self-heal once the referenced cluster is created.
+		res, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(res.RequeueAfter).To(Equal(resyncInterval))
 	})
 
 	It("keeps a placed pipeline on the same instance across reconciles (sticky)", func() {

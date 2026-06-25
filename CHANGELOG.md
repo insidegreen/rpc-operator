@@ -21,9 +21,16 @@ All notable changes to this project are documented here.
   anschließend per `GetStreamStatus`, dass er auf der Instanz vorhanden ist. Meldet die
   Instanz `ErrStreamNotFound`, wird der Stream sauber neu angelegt (DELETE + create), statt
   dem eigenen Status zu vertrauen. `handleClusterAssigned` nutzt nun diesen Helper.
-- **`markClusterFailed` hält den Resync am Leben:** Bisher `requeueAfter=0`, sodass eine
-  vorübergehende Swap-Störung die Pipeline in `PhaseFailed` parkte, ohne sich je selbst zu
-  erholen. Jetzt `resyncInterval`, damit der periodische Reconcile erneut versucht zu deployen.
+- **`markClusterFailed`-Requeue gezielt auf `ClusterNotFound` beschränkt:** `markClusterFailed`
+  nimmt jetzt `requeueAfter` als Parameter. Nur `ClusterNotFound` bekommt `resyncInterval` —
+  für diesen Grund existiert kein Watch (es gibt keinen `PipelineCluster`-Watch), also muss der
+  periodische Reconcile das Auftauchen des Clusters erkennen. Alle anderen Fehlergründe behalten
+  `requeueAfter=0`: ihre Erholung wird bereits von Watches getrieben (`RenderError`/`RewriteError`/
+  `StreamConfigInvalid` via `For(&Pipeline{})`, `SecretNotFound` via Secret-Watch, `ProjectNotFound`
+  via `PipelineProject`-Watch). Das verhindert, dass eine dauerhaft ungültige Config alle 2 min
+  erneut ge-PUTtet und abgelehnt wird. Transiente 5xx/Transportfehler erreichen `markClusterFailed`
+  ohnehin nicht — sie laufen über `return ctrl.Result{}, err` und werden von controller-runtime
+  mit Backoff requeued.
 
 ### Offen / zu verifizieren
 - Exakte PUT-Update-Semantik der Redpanda-Connect-Streams-API (sauberer Upsert vs.
