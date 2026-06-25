@@ -321,6 +321,7 @@ function RouterPanel({ project, route, status, unsaved, readOnly, onEdit, onDele
           {route.to.map(t => (
             <tr key={t.pipeline}>
               <td style={{ padding: '3px 0' }}>{t.pipeline}</td>
+              <td style={{ padding: '3px 0', color: '#334155' }}>{t.label || ''}</td>
               <td style={{ padding: '3px 0', color: '#64748b' }}>{t.when ? `when: ${t.when}` : '—'}</td>
             </tr>
           ))}

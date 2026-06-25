@@ -240,6 +240,26 @@ describe('ProjectDetail', () => {
     expect(screen.queryByRole('button', { name: /\+ Router/i })).toBeNull()
   })
 
+  it('shows the target label and full when in the router panel', async () => {
+    const withLabel: PipelineProject = {
+      metadata: { name: 'orders', namespace: 'default' },
+      spec: { routes: [{ name: 'fan', from: 'ingest', to: [
+        { pipeline: 'alert', when: 'this.level == "high"', label: 'High-Priority EU' },
+      ] }] },
+      status: { phase: 'Ready', cluster: { name: 'orders-cluster', ready: 1, total: 1 } },
+    }
+    server.use(
+      http.get('/api/v1/namespaces/default/pipelineprojects/orders', () => HttpResponse.json(withLabel)),
+    )
+    render(<ProjectDetail namespace="default" name="orders" readOnly={false}
+      onBack={() => {}} onOpenPipeline={() => {}} onEditPipeline={() => {}} onAddPipeline={() => {}} />)
+    await waitFor(() => expect(screen.getByText('fan')).toBeInTheDocument())
+    await userEvent.click(screen.getByText('fan'))           // select the router node
+    // Label must appear in the RouterPanel target table (in addition to the canvas edge label)
+    expect(screen.getAllByText('High-Priority EU').length).toBeGreaterThanOrEqual(2)
+    expect(screen.getByText(/when: this\.level == "high"/)).toBeInTheDocument()
+  })
+
   it('preserves a dirty draft across an unmount/remount (lifted state)', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
 
