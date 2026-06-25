@@ -34,7 +34,12 @@ export function RouterDrawer({ pipelines, route, onSave, onClose }: Props) {
     onSave({
       name: name.trim(),
       from,
-      to: cleaned.map(t => (t.when?.trim() ? { pipeline: t.pipeline, when: t.when.trim() } : { pipeline: t.pipeline })),
+      to: cleaned.map(t => {
+        const out: ProjectRouteTarget = { pipeline: t.pipeline }
+        if (t.when?.trim()) out.when = t.when.trim()
+        if (t.label?.trim()) out.label = t.label.trim()
+        return out
+      }),
     })
   }
 
@@ -71,6 +76,11 @@ export function RouterDrawer({ pipelines, route, onSave, onClose }: Props) {
               {`When ${i + 1} (optional Bloblang predicate)`}
               <input value={t.when ?? ''} onChange={e => setTarget(i, { when: e.target.value })}
                      style={inputStyle} placeholder='this.level == "high"' />
+            </label>
+            <label style={labelStyle}>
+              {`Label ${i + 1} (optional)`}
+              <input value={t.label ?? ''} onChange={e => setTarget(i, { label: e.target.value })}
+                     style={inputStyle} placeholder="High-Priority EU" />
             </label>
             {targets.length > 1 && (
               <button onClick={() => removeTarget(i)} style={removeBtnStyle}>Remove target</button>
