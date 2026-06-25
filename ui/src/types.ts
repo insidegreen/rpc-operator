@@ -198,6 +198,8 @@ export interface ProjectRouteTarget {
   pipeline: string
   /** Optional Bloblang predicate evaluated consumer-side. Empty = always deliver. */
   when?: string
+  /** Optional human-readable label shown on the tactical-map edge instead of `when`. */
+  label?: string
 }
 
 export interface ProjectRoute {

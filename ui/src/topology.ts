@@ -23,6 +23,8 @@ export interface TopoEdge {
   kind: 'route' | 'cache' | 'cacheLink'
   /** Consumer-side predicate, only on router→pipeline edges. */
   predicate?: string
+  /** Consumer-supplied human-readable label, only on router→pipeline edges. */
+  routeLabel?: string
   /** Cache operators (get/set/add/delete/exists), only on cache edges. */
   operators?: string[]
   /** 1-based layer order, only on cacheLink (multilevel) edges. */
@@ -82,7 +84,7 @@ export function buildTopology(
     edges.push({ id: `${r.from}->${rid}`, from: r.from, to: rid, kind: 'route' })
     for (const t of r.to ?? []) {
       ensurePipeline(t.pipeline)
-      edges.push({ id: `${rid}->${t.pipeline}`, from: rid, to: t.pipeline, kind: 'route', predicate: t.when || undefined })
+      edges.push({ id: `${rid}->${t.pipeline}`, from: rid, to: t.pipeline, kind: 'route', predicate: t.when || undefined, routeLabel: t.label || undefined })
     }
   }
 

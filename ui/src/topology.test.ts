@@ -22,6 +22,21 @@ describe('buildTopology', () => {
     expect(alertEdge?.predicate).toBe('this.level == "high"')
   })
 
+  it('sets routeLabel from the target label on the router→pipeline edge', () => {
+    const t = buildTopology(proj([
+      { name: 'fan', from: 'ingest', to: [
+        { pipeline: 'alert', when: 'this.level == "high"', label: 'High-Priority EU' },
+        { pipeline: 'warehouse' },
+      ] },
+    ]))
+    const alertEdge = t.edges.find(e => e.to === 'alert')
+    expect(alertEdge?.routeLabel).toBe('High-Priority EU')
+    expect(alertEdge?.predicate).toBe('this.level == "high"')
+    // no label → routeLabel stays undefined
+    const whEdge = t.edges.find(e => e.to === 'warehouse')
+    expect(whEdge?.routeLabel).toBeUndefined()
+  })
+
   it('adds projectRef members not referenced by any route as standalone nodes', () => {
     const t = buildTopology(proj([
       { name: 'fan', from: 'ingest', to: [{ pipeline: 'warehouse' }] },
