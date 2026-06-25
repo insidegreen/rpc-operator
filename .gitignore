@@ -54,6 +54,7 @@ run.sh
 
 # Superpowers implementation plans (kept locally, not tracked)
 docs/superpowers/plans/
+docs/concepts/superpowers/plans/
 
 # Docs build artifacts and venv
 /.venv-docs/
