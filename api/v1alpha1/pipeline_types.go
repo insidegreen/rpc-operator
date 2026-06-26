@@ -112,6 +112,13 @@ type PipelineSpec struct {
 	// The Pipeline CR itself is never mutated. F50.2.
 	// +optional
 	ProjectRef *ProjectRef `json:"projectRef,omitempty"`
+
+	// Ephemeral opts this Pipeline into one-shot lifecycle: once the run
+	// completes, the operator deletes the Pipeline (and its pod/configmap/
+	// podmonitor/stream) after a result-dependent TTL. Absent = long-running
+	// (unchanged behaviour). F53.
+	// +optional
+	Ephemeral *EphemeralSpec `json:"ephemeral,omitempty"`
 }
 
 // ProjectRef references a PipelineProject in the same namespace.
@@ -119,6 +126,20 @@ type ProjectRef struct {
 	// Name is the PipelineProject name in this namespace.
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
+}
+
+// EphemeralSpec configures one-shot retention for an ephemeral Pipeline. F53.
+type EphemeralSpec struct {
+	// TTLAfterSuccess is how long a successfully completed pipeline is retained
+	// before the operator deletes it.
+	// +kubebuilder:default="1h"
+	// +optional
+	TTLAfterSuccess metav1.Duration `json:"ttlAfterSuccess,omitempty"`
+
+	// TTLAfterFailure is how long a failed pipeline is retained before deletion.
+	// +kubebuilder:default="72h"
+	// +optional
+	TTLAfterFailure metav1.Duration `json:"ttlAfterFailure,omitempty"`
 }
 
 // PipelinePhase reports the high-level lifecycle stage of a Pipeline's pod.
@@ -164,6 +185,17 @@ type PipelineStatus struct {
 
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+
+	// CompletionTime is when the operator first observed an ephemeral run as
+	// finished; it starts the TTL clock. Nil while running. F53.
+	// +optional
+	CompletionTime *metav1.Time `json:"completionTime,omitempty"`
+
+	// CompletionResult is the terminal outcome that selects the TTL
+	// (Succeeded → ttlAfterSuccess, Failed → ttlAfterFailure). F53.
+	// +kubebuilder:validation:Enum=Succeeded;Failed
+	// +optional
+	CompletionResult string `json:"completionResult,omitempty"`
 
 	// +listType=map
 	// +listMapKey=type
