@@ -179,12 +179,13 @@ func (r *PipelineReconciler) handleClusterAssigned(
 	desiredHash := streamConfigHash(instance, body)
 	needDeploy := pipe.Status.StreamConfigHash != desiredHash
 	if !needDeploy {
-		// Config unchanged: still redeploy if the stream is missing or present but
-		// not active on the instance, so a dropped or stalled stream self-heals. A
-		// healthy active stream is left untouched (this is what kills the churn).
-		// A read error other than NotFound is left alone; the next resync retries.
-		st, err := r.Streams.GetStreamStatus(ctx, podURL, pipe.Name)
-		if errors.Is(err, streams.ErrStreamNotFound) || (err == nil && !st.Active) {
+		// Self-heal nur bei tatsächlich FEHLENDEM Stream (z. B. Instanz-Pod
+		// neugestartet → Streams verloren). Ein INAKTIVER Stream wird NICHT neu
+		// deployt: ein Dauerläufer wird per Definition nie inactive, und ein
+		// ephemeral One-Shot SOLL nach dem Lauf inaktiv bleiben (F53). Ein
+		// Redeploy mit identischer Config würde ein echtes Problem ohnehin nicht
+		// beheben. Ein Lesefehler außer NotFound bleibt unangetastet.
+		if _, err := r.Streams.GetStreamStatus(ctx, podURL, pipe.Name); errors.Is(err, streams.ErrStreamNotFound) {
 			needDeploy = true
 		}
 	}

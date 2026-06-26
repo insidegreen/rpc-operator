@@ -454,13 +454,14 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		Expect(fake.EnsureCount).To(BeNumerically(">", before), "dropped stream must be re-deployed (self-heal)")
 		Expect(fake.Has(url, "p20")).To(BeTrue())
 
-		// A present-but-inactive (stalled) stream must also be re-deployed on resync,
-		// preserving the recovery the periodic re-PUT previously provided.
+		// F53: a present-but-inactive stream must NOT be re-deployed. A long-runner
+		// is never inactive; an ephemeral one-shot should stay inactive after it
+		// finishes. Only a MISSING stream (ErrStreamNotFound) self-heals.
 		stalled := fake.EnsureCount
 		fake.SetStreamActive("p20", false)
 		_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(fake.EnsureCount).To(BeNumerically(">", stalled), "stalled (inactive) stream must be re-deployed (self-heal)")
+		Expect(fake.EnsureCount).To(Equal(stalled), "inactive stream must NOT be re-deployed (F53)")
 	})
 
 	It("reschedules onto a remaining instance and sets the Rescheduling reason on scale-down", func() {
