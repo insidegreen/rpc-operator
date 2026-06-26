@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -273,6 +274,99 @@ var _ = Describe("Pipeline Controller", func() {
 		By("status phase leaves Stopped")
 		Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
 		Expect(pipe.Status.Phase).NotTo(Equal(rpcv1alpha1.PhaseStopped))
+	})
+
+	// reconcileN drives the Reconciler n-times (Finalizer-Add + Children + Status).
+	reconcileN := func(n int) {
+		for i := 0; i < n; i++ {
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+			Expect(err).NotTo(HaveOccurred())
+		}
+	}
+
+	Context("ephemeral pipeline (F53)", func() {
+		BeforeEach(func() {
+			By("making the existing Pipeline ephemeral with short TTLs")
+			pipe := &rpcv1alpha1.Pipeline{}
+			Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+			pipe.Spec.Ephemeral = &rpcv1alpha1.EphemeralSpec{
+				TTLAfterSuccess: metav1.Duration{Duration: time.Hour},
+				TTLAfterFailure: metav1.Duration{Duration: 72 * time.Hour},
+			}
+			Expect(k8sClient.Update(ctx, pipe)).To(Succeed())
+		})
+
+		It("records Succeeded completion when the pod succeeds", func() {
+			reconcileN(2) // finalizer + children
+			By("driving the pod to Succeeded")
+			pod := &corev1.Pod{}
+			Expect(k8sClient.Get(ctx, nn, pod)).To(Succeed())
+			pod.Status.Phase = corev1.PodSucceeded
+			Expect(k8sClient.Status().Update(ctx, pod)).To(Succeed())
+
+			reconcileN(1)
+			pipe := &rpcv1alpha1.Pipeline{}
+			Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+			Expect(pipe.Status.CompletionResult).To(Equal("Succeeded"))
+			Expect(pipe.Status.CompletionTime).NotTo(BeNil())
+		})
+
+		It("requeues but does not delete while the TTL has not elapsed", func() {
+			reconcileN(2)
+			pod := &corev1.Pod{}
+			Expect(k8sClient.Get(ctx, nn, pod)).To(Succeed())
+			pod.Status.Phase = corev1.PodSucceeded
+			Expect(k8sClient.Status().Update(ctx, pod)).To(Succeed())
+			reconcileN(1) // records completion
+
+			res, err := controllerReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(res.RequeueAfter).To(BeNumerically(">", 0))
+			Expect(k8sClient.Get(ctx, nn, &rpcv1alpha1.Pipeline{})).To(Succeed()) // still present
+		})
+
+		It("deletes the CR once the TTL has elapsed", func() {
+			reconcileN(2)
+			pod := &corev1.Pod{}
+			Expect(k8sClient.Get(ctx, nn, pod)).To(Succeed())
+			pod.Status.Phase = corev1.PodSucceeded
+			Expect(k8sClient.Status().Update(ctx, pod)).To(Succeed())
+			reconcileN(1)
+
+			By("backdating completionTime past the success TTL")
+			pipe := &rpcv1alpha1.Pipeline{}
+			Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+			past := metav1.NewTime(time.Now().Add(-2 * time.Hour))
+			pipe.Status.CompletionTime = &past
+			Expect(k8sClient.Status().Update(ctx, pipe)).To(Succeed())
+
+			reconcileN(1) // sees expiry → Delete (sets DeletionTimestamp)
+			reconcileN(1) // deletion path → finalizer removed
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, nn, &rpcv1alpha1.Pipeline{})
+				return apierrors.IsNotFound(err)
+			}).Should(BeTrue())
+		})
+
+		It("resets completion and re-runs when the spec changes after completion", func() {
+			reconcileN(2)
+			pod := &corev1.Pod{}
+			Expect(k8sClient.Get(ctx, nn, pod)).To(Succeed())
+			pod.Status.Phase = corev1.PodSucceeded
+			Expect(k8sClient.Status().Update(ctx, pod)).To(Succeed())
+			reconcileN(1)
+
+			By("editing the spec (bumps generation)")
+			pipe := &rpcv1alpha1.Pipeline{}
+			Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+			pipe.Spec.Image = "docker.redpanda.com/redpandadata/connect:4.50"
+			Expect(k8sClient.Update(ctx, pipe)).To(Succeed())
+
+			reconcileN(1) // early block detects generation drift → clears completion
+			Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+			Expect(pipe.Status.CompletionTime).To(BeNil())
+			Expect(pipe.Status.CompletionResult).To(BeEmpty())
+		})
 	})
 })
 

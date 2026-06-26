@@ -111,6 +111,33 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	// F53: ephemeral lifecycle. Once a one-shot run has completed, this CR no
+	// longer needs rendering or stream/pod work — it only waits out its retention
+	// TTL and is then deleted. Runs before the mode branches so a finished pipeline
+	// is never re-deployed.
+	if pipe.Spec.Ephemeral != nil && pipe.Status.CompletionTime != nil {
+		// Spec changed after completion (generation bumped) → treat as a re-run:
+		// clear the completion record and fall through into a fresh reconcile.
+		if pipe.Generation != pipe.Status.ObservedGeneration {
+			pipe.Status.CompletionTime = nil
+			pipe.Status.CompletionResult = ""
+			if err := r.Status().Update(ctx, &pipe); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{Requeue: true}, nil
+		}
+		expired, rest := ephemeralExpiry(&pipe)
+		if !expired {
+			return ctrl.Result{RequeueAfter: rest}, nil
+		}
+		// TTL elapsed: delete the CR. The finalizer tears down any cluster stream;
+		// OwnerReferences GC the pod/configmap/podmonitor.
+		if err := r.Delete(ctx, &pipe); err != nil {
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		}
+		return ctrl.Result{}, nil
+	}
+
 	// F45: stopped pipelines have no pod and stay at phase=Stopped until
 	// spec.stopped flips back to false. Short-circuit before render to avoid
 	// recreating the pod on every loop.
@@ -227,7 +254,21 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		existingCond.Reason != desiredCond.Reason ||
 		existingCond.Message != desiredCond.Message
 
-	if condChanged || pipe.Status.Phase != desired ||
+	// F53: an ephemeral pod that reached a terminal phase has completed. Record the
+	// outcome once; the early TTL block then drives retention + deletion.
+	if pipe.Spec.Ephemeral != nil {
+		switch desired {
+		case rpcv1alpha1.PhaseStopped: // PodSucceeded
+			markEphemeralCompletion(&pipe, completionSucceeded)
+		case rpcv1alpha1.PhaseFailed: // PodFailed (RestartPolicy: Never, Task 4)
+			markEphemeralCompletion(&pipe, completionFailed)
+		}
+	}
+
+	completionPending := pipe.Spec.Ephemeral != nil && pipe.Status.CompletionTime != nil &&
+		apimeta.FindStatusCondition(pipe.Status.Conditions, "Ready") != nil &&
+		pipe.Status.CompletionResult != "" // newly marked this reconcile
+	if condChanged || completionPending || pipe.Status.Phase != desired ||
 		pipe.Status.PodName != pod.Name ||
 		pipe.Status.ObservedGeneration != pipe.Generation {
 		pipe.Status.Phase = desired
