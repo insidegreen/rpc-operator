@@ -24,10 +24,10 @@ func ephemeralPipe(result string, completedAgo time.Duration) *rpcv1alpha1.Pipel
 
 func TestEphemeralExpiry(t *testing.T) {
 	cases := []struct {
-		name        string
-		result      string
+		name         string
+		result       string
 		completedAgo time.Duration
-		wantExpired bool
+		wantExpired  bool
 	}{
 		{"success not yet expired", completionSucceeded, 30 * time.Minute, false},
 		{"success expired", completionSucceeded, 90 * time.Minute, true},
