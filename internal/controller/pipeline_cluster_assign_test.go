@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -856,6 +857,104 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		_, err = reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(apierrors.IsNotFound(k8sClient.Get(ctx, nn, &p))).To(BeTrue())
+	})
+
+	It("records Succeeded completion for an ephemeral stream that ran then went inactive (F53)", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "ceph1", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "ceph1", 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p-eph-success", Namespace: namespace},
+			Spec: rpcv1alpha1.PipelineSpec{
+				ClusterRef: "ceph1",
+				Input:      rpcv1alpha1.ComponentSpec{Type: "generate"},
+				Output:     rpcv1alpha1.ComponentSpec{Type: "drop"},
+				Ephemeral: &rpcv1alpha1.EphemeralSpec{
+					TTLAfterSuccess: metav1.Duration{Duration: time.Hour},
+					TTLAfterFailure: metav1.Duration{Duration: 72 * time.Hour},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		// First: assign the pipeline (deploy the stream)
+		nn := assign("p-eph-success")
+
+		// Now simulate: stream ran (uptime>0) and finished (inactive)
+		fake.SetStreamActive("p-eph-success", false)
+		fake.SetStreamUptime("p-eph-success", 12) // lief 12s, jetzt fertig
+
+		// Second reconcile: detects inactive+uptime>0 → records Succeeded
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+		Expect(pipe.Status.CompletionResult).To(Equal("Succeeded"))
+		Expect(pipe.Status.CompletionTime).NotTo(BeNil())
+	})
+
+	It("does NOT complete an inactive stream that never ran (uptime==0, F53)", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "ceph2", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "ceph2", 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p-eph-nouptime", Namespace: namespace},
+			Spec: rpcv1alpha1.PipelineSpec{
+				ClusterRef: "ceph2",
+				Input:      rpcv1alpha1.ComponentSpec{Type: "generate"},
+				Output:     rpcv1alpha1.ComponentSpec{Type: "drop"},
+				Ephemeral: &rpcv1alpha1.EphemeralSpec{
+					TTLAfterSuccess: metav1.Duration{Duration: time.Hour},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+
+		nn := assign("p-eph-nouptime")
+
+		// Stream is inactive but never ran (uptime==0) — e.g. just deployed, not yet started
+		fake.SetStreamActive("p-eph-nouptime", false)
+		fake.SetStreamUptime("p-eph-nouptime", 0)
+
+		_, err := reconciler.Reconcile(ctx, reconcile.Request{NamespacedName: nn})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+		Expect(pipe.Status.CompletionTime).To(BeNil())
+	})
+
+	It("records Failed completion when the stream config is rejected (F53)", func() {
+		cluster := &rpcv1alpha1.PipelineCluster{
+			ObjectMeta: metav1.ObjectMeta{Name: "ceph3", Namespace: namespace},
+			Spec:       rpcv1alpha1.PipelineClusterSpec{Replicas: 1},
+		}
+		Expect(k8sClient.Create(ctx, cluster)).To(Succeed())
+		makeReadyClusterPod(ctx, "ceph3", 0)
+
+		pipe := &rpcv1alpha1.Pipeline{
+			ObjectMeta: metav1.ObjectMeta{Name: "p-eph-reject", Namespace: namespace},
+			Spec: rpcv1alpha1.PipelineSpec{
+				ClusterRef: "ceph3",
+				Input:      rpcv1alpha1.ComponentSpec{Type: "generate"},
+				Output:     rpcv1alpha1.ComponentSpec{Type: "drop"},
+				Ephemeral: &rpcv1alpha1.EphemeralSpec{
+					TTLAfterFailure: metav1.Duration{Duration: 72 * time.Hour},
+				},
+			},
+		}
+		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
+		fake.EnsureErr = &streams.ConfigRejectedError{StreamID: "p-eph-reject", Status: 400, Body: "lint error"}
+
+		nn := assign("p-eph-reject")
+		Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+		Expect(pipe.Status.CompletionResult).To(Equal("Failed"))
 	})
 
 	AfterEach(func() {

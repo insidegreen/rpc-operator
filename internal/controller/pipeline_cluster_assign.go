@@ -154,11 +154,13 @@ func (r *PipelineReconciler) handleClusterAssigned(
 
 	body, err := render.RenderStreamConfig(&pipe.Spec)
 	if err != nil {
+		markEphemeralCompletion(pipe, completionFailed)
 		return r.markClusterFailed(ctx, pipe, "RenderError", err.Error(), 0)
 	}
 	if ioPlan != nil {
 		body, err = render.ApplyProjectIO(body, *ioPlan)
 		if err != nil {
+			markEphemeralCompletion(pipe, completionFailed)
 			return r.markClusterFailed(ctx, pipe, "RewriteError", err.Error(), 0)
 		}
 	}
@@ -197,9 +199,22 @@ func (r *PipelineReconciler) handleClusterAssigned(
 			// failures (5xx, transport) are returned so controller-runtime retries.
 			var rejected *streams.ConfigRejectedError
 			if errors.As(err, &rejected) {
+				markEphemeralCompletion(pipe, completionFailed)
 				return r.markClusterFailed(ctx, pipe, "StreamConfigInvalid", rejected.Body, 0)
 			}
 			return ctrl.Result{}, fmt.Errorf("ensure stream: %w", err)
+		}
+	}
+	sa := r.streamActiveCondition(ctx, podURL, pipe.Name)
+	// F53: ein ephemeral Stream, der lief (uptime>0) und jetzt inaktiv ist, hat
+	// seinen One-Shot abgeschlossen. Completion festhalten und mit PhaseStopped
+	// schreiben (löst das Status-Update aus); der frühe TTL-Block übernimmt danach
+	// Retention + Löschung. Der inaktive Stream wird dank Bugfix 4a nicht neu deployt.
+	if pipe.Spec.Ephemeral != nil && pipe.Status.CompletionTime == nil {
+		if st, err := r.Streams.GetStreamStatus(ctx, podURL, pipe.Name); err == nil && !st.Active && st.Uptime > 0 {
+			markEphemeralCompletion(pipe, completionSucceeded)
+			done := metav1.Condition{Type: "Ready", Status: metav1.ConditionFalse, Reason: "Completed", Message: "ephemeral stream completed"}
+			return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseStopped, cluster.Name, instance, pipe.Name, desiredHash, done, &sa, 0)
 		}
 	}
 	reason, msg := "Assigned", fmt.Sprintf("stream running on %s", instance)
@@ -208,7 +223,6 @@ func (r *PipelineReconciler) handleClusterAssigned(
 		msg = fmt.Sprintf("rescheduled from %s to %s", pipe.Status.AssignedInstance, instance)
 	}
 	cond := metav1.Condition{Type: "Ready", Status: metav1.ConditionTrue, Reason: reason, Message: msg}
-	sa := r.streamActiveCondition(ctx, podURL, pipe.Name)
 	return r.writeClusterStatus(ctx, pipe, rpcv1alpha1.PhaseRunning, cluster.Name, instance, pipe.Name, desiredHash, cond, &sa, resyncInterval)
 }
 

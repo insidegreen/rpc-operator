@@ -35,6 +35,9 @@ type FakeClient struct {
 	GetErr error
 	// inactive marks stream ids that are held but report Active:false.
 	inactive map[string]bool
+	// uptime overrides the Uptime value GetStreamStatus reports for a stream id,
+	// letting tests model a stream that ran (uptime>0) before going inactive. F53.
+	uptime map[string]float64
 }
 
 var _ Client = (*FakeClient)(nil)
@@ -45,6 +48,7 @@ func NewFakeClient() *FakeClient {
 		streams:  map[string]map[string]string{},
 		caches:   map[string]map[string]string{},
 		inactive: map[string]bool{},
+		uptime:   map[string]float64{},
 	}
 }
 
@@ -154,10 +158,14 @@ func (f *FakeClient) GetStreamStatus(_ context.Context, podBaseURL, streamID str
 	if _, ok := f.streams[podBaseURL][streamID]; !ok {
 		return StreamStatus{}, ErrStreamNotFound
 	}
+	up := f.uptime[streamID]
 	if f.inactive[streamID] {
-		return StreamStatus{Active: false}, nil
+		return StreamStatus{Active: false, Uptime: up}, nil
 	}
-	return StreamStatus{Active: true, Uptime: 1}, nil // uptime arbitrary; consumers/tests assert Active only
+	if up == 0 {
+		up = 1 // sinnvoller Default für einen aktiven Stream
+	}
+	return StreamStatus{Active: true, Uptime: up}, nil
 }
 
 // SetStreamActive marks whether a stream id reports Active in GetStreamStatus (test helper).
@@ -165,4 +173,12 @@ func (f *FakeClient) SetStreamActive(streamID string, active bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.inactive[streamID] = !active
+}
+
+// SetStreamUptime overrides the uptime GetStreamStatus reports for a stream id,
+// letting tests model a stream that ran (uptime>0) before going inactive. F53.
+func (f *FakeClient) SetStreamUptime(streamID string, uptime float64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.uptime[streamID] = uptime
 }
