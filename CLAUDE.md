@@ -12,20 +12,11 @@ Diagrams: Mermaid code for the architecture.
 
 The RPC Operator provides a flexible way to configure Redpanda Connect (RPC) pipelines and run them in Kubernetes. It gives Data Engineers a web interface to configure all Redpanda Connect pipeline components (Input, Processors, Output, etc.) visually or as YAML. The Data Engineer can then deploy a configured pipeline to a Kubernetes cluster with a simple deploy action and monitor it in the web interface.
 
-## Redpanda Connect Operator – Architecture and Pipeline Configuration in Kubernetes
+## How it works
 
-### 1. Core Concept
+Redpanda Connect (built on Benthos) runs declarative YAML pipelines — `input` → `pipeline.processors` → `output`, stateless and at-least-once. Example:
 
-Redpanda Connect is based on Benthos — a declarative data-streaming service that solves complex data pipelines through simple, chained, stateless processing steps. Benthos guarantees at-least-once delivery without persisting messages during processing and supports a wide range of connectors for input/output. Pipeline configuration is done via a YAML file that defines the input, processor, and output. Each configuration is stored as a Kubernetes Custom Resource (CR), and one dedicated pod is started per configuration to execute the pipeline.
-
-Sources:
-- https://github.com/redpanda-data/connect
-- https://github.com/redpanda-data/benthos
-
-### 2. Pipeline Configuration
-
-Example configuration:
-```
+```yaml
 input:
   stdin: {}
 pipeline:
@@ -35,20 +26,36 @@ output:
   stdout: {}
 ```
 
-Input/Output: Supports stdin, stdout, as well as Kafka, HTTP, filesystems, etc.
-Processors: Enable transformations such as mapping, filtering, aggregation, etc.
+The operator stores each pipeline as a Kubernetes CR and reconciles it. Two execution models: **standalone** (one dedicated pod per Pipeline CR) and **cluster/streams mode** (Pipeline placed as a stream on a shared `PipelineCluster` instance — see the E2E section). Inputs/outputs cover stdin/stdout, Kafka, HTTP, filesystems, etc.
 
-### 3. Kubernetes Integration
+For deeper architecture, read `docs/architecture.md`.
 
-Custom Resource Definition (CRD): The RPC Operator uses a CRD to store pipeline configurations as Kubernetes resources. The RPC Operator watches the CRs of the CRDs and creates one pod per configuration to execute the pipeline.
-Operator pattern: The RPC Operator is a Kubernetes controller that manages the lifecycle of pipelines (scaling, monitoring, error handling).
-Pods: Each pipeline pod receives a Redpanda Connect configuration (Input, Processor, Output) and executes the pipeline as a self-contained unit using Redpanda Connect.
+## Commands
 
-### 4. Benefits
+All via `make` (run `make help` for the full self-documented list):
+- `make build` — manifests + codegen + fmt/vet + UI build + manager binary
+- `make test` — unit + envtest (auto-downloads envtest assets); `make test-ci` assumes they're present
+- `make lint` / `make lint-fix` — golangci-lint
+- `make run` — controller + API locally against current kubeconfig (dev flags in `run.sh`)
+- `make ui-dev` — Vite dev server, proxies `/api` → localhost:8082
+- `make ui-build` / `make ui-test` — build React UI into `internal/api/static/` / run vitest
+- `make docs-serve` / `make docs-build` — mkdocs (build is `--strict`)
+- `make docs-check-reference` — CRD reference drift (Go fields vs markdown)
 
-Simple deployment: Pipelines are managed as Kubernetes resources and can be deployed/monitored via kubectl.
-Scalability: Each pipeline runs in its own pod, enabling horizontal scaling.
-Resilience: At-least-once delivery and backpressure mechanisms ensure reliable data processing.
+## Code Layout
+
+- `cmd/main.go` — single entrypoint; one binary serves **both** the controller manager and the HTTP/UI API.
+- `api/v1alpha1/` — CRD types (Pipeline, PipelineCluster, …) + deepcopy.
+- `internal/controller/` — reconcilers (operator pattern).
+- `internal/api/` — HTTP + websocket handlers (`handlers_*.go`), auth/OIDC, validation; serves the built UI from `internal/api/static/`.
+- `internal/{streams,render,projectroute,nats}/` — streams-mode (cluster) client, config rendering, project-route logic, NATS.
+- `ui/` — React + Vite + TypeScript; builds into `internal/api/static/`.
+- `charts/` — Helm chart (defaults in `charts/rpc-operator/values.yaml`; root `values.yaml` is a gitignored per-dev override).
+
+## Gotchas
+
+- Go module path is `github.com/insidegreen/rpc-operator-claude` even though the repo is hosted on Forgejo (`forgejo.thecloudroute.com/tom/rpc-operator`) — no GitHub repo exists. Don't "fix" the import path.
+- Language: `README.md` is English; PRD/ADRs/PRPs and commit messages are German.
 
 ## Specifications
 
