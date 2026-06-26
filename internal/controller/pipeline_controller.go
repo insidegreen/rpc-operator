@@ -204,7 +204,7 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}}
 	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, pod, func() error {
 		if pod.CreationTimestamp.IsZero() {
-			pod.Spec = buildPodSpec(cm.Name, pipe.Spec.Image, secretRefsToEnvVars(pipe.Spec.SecretRefs))
+			pod.Spec = buildPodSpec(cm.Name, pipe.Spec.Image, secretRefsToEnvVars(pipe.Spec.SecretRefs), pipe.Spec.Ephemeral != nil)
 			pod.Labels = map[string]string{
 				"rpc.operator.io/pipeline": pipe.Name,
 			}

@@ -39,7 +39,7 @@ func TestDerivePhase(t *testing.T) {
 }
 
 func TestBuildPodSpec_Defaults(t *testing.T) {
-	spec := buildPodSpec("hello-config", "", nil)
+	spec := buildPodSpec("hello-config", "", nil, false)
 	if spec.RestartPolicy != corev1.RestartPolicyOnFailure {
 		t.Errorf("expected RestartPolicy=OnFailure, got %q", spec.RestartPolicy)
 	}
@@ -74,7 +74,7 @@ func TestBuildPodSpec_Defaults(t *testing.T) {
 }
 
 func TestBuildPodSpec_CustomImage(t *testing.T) {
-	spec := buildPodSpec("cm", "ghcr.io/redpanda-data/connect:4.36.1", nil)
+	spec := buildPodSpec("cm", "ghcr.io/redpanda-data/connect:4.36.1", nil, false)
 	if spec.Containers[0].Image != "ghcr.io/redpanda-data/connect:4.36.1" {
 		t.Errorf("custom image not propagated: %v", spec.Containers[0].Image)
 	}
@@ -90,7 +90,7 @@ func TestBuildPodSpec_SecretRefs(t *testing.T) {
 			},
 		},
 	}}
-	spec := buildPodSpec("cm", "", envVars)
+	spec := buildPodSpec("cm", "", envVars, false)
 	if len(spec.Containers[0].Env) != 1 {
 		t.Fatalf("expected 1 env var, got %d", len(spec.Containers[0].Env))
 	}
@@ -107,8 +107,19 @@ func TestBuildPodSpec_SecretRefs(t *testing.T) {
 }
 
 func TestBuildPodSpec_NoEnvWhenNilRefs(t *testing.T) {
-	spec := buildPodSpec("cm", "", nil)
+	spec := buildPodSpec("cm", "", nil, false)
 	if len(spec.Containers[0].Env) != 0 {
 		t.Errorf("expected no env vars for nil secretRefs, got %d", len(spec.Containers[0].Env))
+	}
+}
+
+func TestBuildPodSpecRestartPolicy(t *testing.T) {
+	long := buildPodSpec("cfg", "", nil, false)
+	if long.RestartPolicy != corev1.RestartPolicyOnFailure {
+		t.Fatalf("long-running pod: got %q, want OnFailure", long.RestartPolicy)
+	}
+	eph := buildPodSpec("cfg", "", nil, true)
+	if eph.RestartPolicy != corev1.RestartPolicyNever {
+		t.Fatalf("ephemeral pod: got %q, want Never", eph.RestartPolicy)
 	}
 }

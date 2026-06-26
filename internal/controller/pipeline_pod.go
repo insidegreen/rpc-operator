@@ -27,16 +27,21 @@ const (
 	readinessProbesPath = "/ready"
 )
 
-func buildPodSpec(cmName, image string, envVars []corev1.EnvVar) corev1.PodSpec {
+func buildPodSpec(cmName, image string, envVars []corev1.EnvVar, ephemeral bool) corev1.PodSpec {
 	if image == "" {
 		image = defaultImage
 	}
+	// OnFailure (not Always): a finite RPC pipeline (e.g. generate with count=N)
+	// exits 0 when done; Always would replay it. OnFailure still restarts on
+	// crashes, which long-running pipelines need.
+	// F53: ephemeral one-shots use Never instead, so a failed run (exit != 0) is
+	// terminal (PodFailed) and the failure TTL can apply, rather than crash-looping.
+	restartPolicy := corev1.RestartPolicyOnFailure
+	if ephemeral {
+		restartPolicy = corev1.RestartPolicyNever
+	}
 	return corev1.PodSpec{
-		// OnFailure (not Always): a finite RPC pipeline (e.g. generate with
-		// count=N) exits 0 when its work is done. Always would restart it
-		// indefinitely, replaying the same input. OnFailure still restarts on
-		// crashes, which is what long-running pipelines need.
-		RestartPolicy:                 corev1.RestartPolicyOnFailure,
+		RestartPolicy:                 restartPolicy,
 		TerminationGracePeriodSeconds: ptr.To[int64](30),
 		SecurityContext: &corev1.PodSecurityContext{
 			RunAsNonRoot: new(true),
