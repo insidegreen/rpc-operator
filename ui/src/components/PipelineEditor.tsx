@@ -4,6 +4,7 @@ import { SecretRefsEditor } from './SecretRefsEditor'
 import { listClusters, listProjects, renderPipelineYAML } from '../api'
 import type { CatalogComponent, ComponentSpec, PipelineCluster, PipelineProject, PipelineSpec } from '../types'
 import { roleOf, outputManaged, inputManaged } from '../projectRole'
+import { initializeMonacoSchema, isMonacoInitialized } from '../utils/monacoSchemaLoader'
 
 const MonacoEditor = lazy(() =>
   import('@monaco-editor/react').then(m => ({ default: m.default })),
@@ -26,6 +27,22 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
   const [projects, setProjects] = useState<PipelineProject[]>([])
 
   const isRaw = !!spec.rawYAML
+
+  // Registriere RPK Schema bei Monaco (einmalig pro Application)
+  useEffect(() => {
+    if (isMonacoInitialized()) {
+      return; // Bereits initialisiert
+    }
+    
+    import('@monaco-editor/react').then(({ default: Monaco }) => {
+      // Zugriff auf die globale Monaco-Instanz
+      // @ts-expect-error - Zugriff auf interne Monaco-Instanz
+      const monacoInstance = window.monaco || (Monaco as any).__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED?.monaco;
+      if (monacoInstance) {
+        initializeMonacoSchema(monacoInstance);
+      }
+    });
+  }, []);
 
   useEffect(() => {
     listClusters(namespace).then(setClusters).catch(() => setClusters([]))
