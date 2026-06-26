@@ -28,8 +28,12 @@ const (
 // ephemeralExpiry reports whether an ephemeral pipeline's retention TTL has
 // elapsed since completion, and—when not—how long remains (for RequeueAfter).
 // Always recomputed from status.completionTime, so it is drift-free and survives
-// operator restarts. Callers must only invoke it when CompletionTime is set.
+// operator restarts. Returns (false, 0) if the pipeline is non-ephemeral or has
+// not completed.
 func ephemeralExpiry(pipe *rpcv1alpha1.Pipeline) (expired bool, requeueAfter time.Duration) {
+	if pipe.Spec.Ephemeral == nil || pipe.Status.CompletionTime == nil {
+		return false, 0
+	}
 	ttl := pipe.Spec.Ephemeral.TTLAfterSuccess.Duration
 	if pipe.Status.CompletionResult == completionFailed {
 		ttl = pipe.Spec.Ephemeral.TTLAfterFailure.Duration
