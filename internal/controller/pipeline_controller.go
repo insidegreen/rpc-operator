@@ -266,8 +266,7 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	completionPending := pipe.Spec.Ephemeral != nil && pipe.Status.CompletionTime != nil &&
-		apimeta.FindStatusCondition(pipe.Status.Conditions, "Ready") != nil &&
-		pipe.Status.CompletionResult != "" // newly marked this reconcile
+		pipe.Status.CompletionResult != ""
 	if condChanged || completionPending || pipe.Status.Phase != desired ||
 		pipe.Status.PodName != pod.Name ||
 		pipe.Status.ObservedGeneration != pipe.Generation {
