@@ -1,0 +1,23 @@
+# F53: ephemeral One-Shot-Pipeline. Läuft einmal (generate count=5), beendet sich
+# und wird vom Operator nach Ablauf der TTL automatisch samt Kindobjekten gelöscht.
+apiVersion: rpc.operator.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: ephemeral-sample
+spec:
+  ephemeral:
+    ttlAfterSuccess: "1h"
+    ttlAfterFailure: "72h"
+  input:
+    type: generate
+    config:
+      mapping: 'root = {"msg": "hello"}'
+      interval: "200ms"
+      count: 5
+  processors:
+    - type: log
+      config:
+        message: 'processed: ${! content() }'
+  output:
+    type: stdout
+    config: {}
