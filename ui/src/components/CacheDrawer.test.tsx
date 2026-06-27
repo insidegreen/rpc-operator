@@ -3,6 +3,9 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 // Mock the lazy Monaco editor with a plain textarea so we can type YAML.
+// Also stub setupMonaco (the lazy chunk bundles Monaco + workers + schema fetch,
+// none of which jsdom can run).
+vi.mock('../utils/monacoSetup', () => ({ setupMonaco: () => Promise.resolve() }))
 vi.mock('@monaco-editor/react', () => ({
   default: ({ value, onChange }: { value?: string; onChange?: (v: string | undefined) => void }) => (
     <textarea aria-label="custom-config" value={value} onChange={e => onChange?.(e.target.value)} />

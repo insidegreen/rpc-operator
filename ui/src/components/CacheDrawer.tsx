@@ -2,7 +2,15 @@ import { lazy, Suspense, useState } from 'react'
 import yaml from 'js-yaml'
 import type { ProjectCacheResource } from '../types'
 
-const MonacoEditor = lazy(() => import('@monaco-editor/react').then(m => ({ default: m.default })))
+const MonacoEditor = lazy(async () => {
+  // Route through setupMonaco so the bundled Monaco (not the CDN loader) is used
+  // app-wide; otherwise opening this editor first would init CDN Monaco and the
+  // pipeline editors' loader.config({ monaco }) would no longer take effect.
+  const { setupMonaco } = await import('../utils/monacoSetup')
+  await setupMonaco()
+  const m = await import('@monaco-editor/react')
+  return { default: m.default }
+})
 
 interface Props {
   /** Editing an existing cache → prefilled, name read-only. */
