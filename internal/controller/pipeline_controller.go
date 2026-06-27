@@ -165,6 +165,7 @@ func (r *PipelineReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	yamlStr, err := render.RenderPipelineYAML(&pipe.Spec)
 	if err != nil {
 		log.Error(err, "render failed")
+		markEphemeralCompletion(&pipe, completionFailed)
 		return r.markFailed(ctx, &pipe, "RenderError", err.Error())
 	}
 

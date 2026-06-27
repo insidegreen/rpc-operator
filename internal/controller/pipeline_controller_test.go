@@ -367,6 +367,26 @@ var _ = Describe("Pipeline Controller", func() {
 			Expect(pipe.Status.CompletionTime).To(BeNil())
 			Expect(pipe.Status.CompletionResult).To(BeEmpty())
 		})
+
+		It("marks completionResult=Failed and sets completionTime when render fails (F53 review fix)", func() {
+			By("setting rawYAML to a YAML sequence so render.RenderPipelineYAML returns 'YAML must be a mapping'")
+			pipe := &rpcv1alpha1.Pipeline{}
+			Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+			pipe.Spec.RawYAML = "- item1\n- item2\n"
+			// Clear structured input/output so rawYAML is the sole render path.
+			pipe.Spec.Input = rpcv1alpha1.ComponentSpec{}
+			pipe.Spec.Output = rpcv1alpha1.ComponentSpec{}
+			pipe.Spec.Processors = nil
+			Expect(k8sClient.Update(ctx, pipe)).To(Succeed())
+
+			reconcileN(1) // adds finalizer
+			reconcileN(1) // render fails → PhaseFailed + ephemeral completion
+
+			Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
+			Expect(pipe.Status.Phase).To(Equal(rpcv1alpha1.PhaseFailed))
+			Expect(pipe.Status.CompletionResult).To(Equal("Failed"))
+			Expect(pipe.Status.CompletionTime).NotTo(BeNil())
+		})
 	})
 })
 
