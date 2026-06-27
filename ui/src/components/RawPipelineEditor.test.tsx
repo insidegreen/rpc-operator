@@ -1,8 +1,19 @@
-import { describe, it, expect, afterEach, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, afterEach, beforeAll, afterAll, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
+
+// The lazy Monaco chunk bundles the full editor + web workers and fetches the
+// RPK schema — none of which jsdom can run. Mock both so the editor renders as a
+// plain textarea and the schema setup is a no-op.
+vi.mock('../utils/monacoSetup', () => ({ setupMonaco: () => Promise.resolve() }))
+vi.mock('@monaco-editor/react', () => ({
+  default: ({ value, onChange }: { value?: string; onChange?: (v: string | undefined) => void }) => (
+    <textarea aria-label="raw-yaml" value={value} onChange={e => onChange?.(e.target.value)} />
+  ),
+}))
+
 import { RawPipelineEditor } from './RawPipelineEditor'
 import type { Pipeline, PipelineProject } from '../types'
 

@@ -3,11 +3,14 @@ import { createPipeline, listClusters, listProjects, renderPipelineYAML, updateP
 import { SecretRefsEditor } from './SecretRefsEditor'
 import type { Pipeline, PipelineCluster, PipelineProject, SecretRef } from '../types'
 import { roleOf, outputManaged, inputManaged } from '../projectRole'
-import { initializeMonacoSchema, isMonacoInitialized } from '../utils/monacoSchemaLoader'
 
-const MonacoEditor = lazy(() =>
-  import('@monaco-editor/react').then(m => ({ default: m.default })),
-)
+const MonacoEditor = lazy(async () => {
+  // Bündelt Monaco + registriert das RPK-YAML-Schema, bevor der Editor mountet.
+  const { setupMonaco } = await import('../utils/monacoSetup')
+  await setupMonaco()
+  const m = await import('@monaco-editor/react')
+  return { default: m.default }
+})
 
 interface Props {
   namespace: string
@@ -31,22 +34,6 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved, in
   const [showRendered, setShowRendered] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-
-  // Registriere RPK Schema bei Monaco (einmalig pro Application)
-  useEffect(() => {
-    if (isMonacoInitialized()) {
-      return; // Bereits initialisiert
-    }
-    
-    import('@monaco-editor/react').then(({ default: Monaco }) => {
-      // Zugriff auf die globale Monaco-Instanz
-      // @ts-expect-error - Zugriff auf interne Monaco-Instanz
-      const monacoInstance = window.monaco || (Monaco as any).__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED?.monaco;
-      if (monacoInstance) {
-        initializeMonacoSchema(monacoInstance);
-      }
-    });
-  }, []);
 
   useEffect(() => {
     listClusters(namespace).then(setClusters).catch(() => setClusters([]))
@@ -178,6 +165,7 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved, in
           <MonacoEditor
             height="500px"
             language="yaml"
+            path="pipeline.yaml"
             value={showRendered ? renderedYAML : text}
             onChange={v => { if (!showRendered) setText(v ?? '') }}
             options={{
