@@ -15,6 +15,7 @@
 !ui/tsconfig.json
 !ui/index.html
 !ui/src/**
+!ui/public/**
 
 # Kubebuilder/operator scaffolding referenced by code generation paths
 !hack/**
