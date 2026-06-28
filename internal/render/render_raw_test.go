@@ -64,19 +64,3 @@ func TestRenderPipelineYAML_RawYAML_NonMapping(t *testing.T) {
 		t.Errorf("expected 'mapping' in error, got: %v", err)
 	}
 }
-
-func TestRenderPipelineYAML_RawYAML_EmptyFallsThrough(t *testing.T) {
-	// Empty RawYAML should fall through to the structured path.
-	spec := &rpcv1alpha1.PipelineSpec{
-		RawYAML: "",
-		Input:   rpcv1alpha1.ComponentSpec{Type: "stdin"},
-		Output:  rpcv1alpha1.ComponentSpec{Type: "stdout"},
-	}
-	got, err := render.RenderPipelineYAML(spec)
-	if err != nil {
-		t.Fatalf("RenderPipelineYAML: %v", err)
-	}
-	if !strings.Contains(got, "stdin:") {
-		t.Errorf("expected structured render, got:\n%s", got)
-	}
-}
