@@ -1,7 +1,8 @@
 import { Suspense, lazy, useEffect, useState } from 'react'
 import { createPipeline, listClusters, listProjects, renderPipelineYAML, updatePipeline } from '../api'
+import { EphemeralEditor } from './EphemeralEditor'
 import { SecretRefsEditor } from './SecretRefsEditor'
-import type { Pipeline, PipelineCluster, PipelineProject, SecretRef } from '../types'
+import type { EphemeralSpec, Pipeline, PipelineCluster, PipelineProject, SecretRef } from '../types'
 import { roleOf, outputManaged, inputManaged } from '../projectRole'
 
 const MonacoEditor = lazy(async () => {
@@ -26,6 +27,7 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved, in
   const [name, setName] = useState(editPipeline?.metadata.name ?? '')
   const [text, setText] = useState(editPipeline?.spec.rawYAML ?? '')
   const [secretRefs, setSecretRefs] = useState<SecretRef[]>(editPipeline?.spec.secretRefs ?? [])
+  const [ephemeral, setEphemeral] = useState<EphemeralSpec | undefined>(editPipeline?.spec.ephemeral)
   const [clusterRef, setClusterRef] = useState(editPipeline?.spec.clusterRef ?? '')
   const [clusters, setClusters] = useState<PipelineCluster[]>([])
   const [projectRef, setProjectRef] = useState(editPipeline?.spec.projectRef?.name ?? initialProjectRef ?? '')
@@ -63,6 +65,7 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved, in
         rawYAML: text,
         ...(projectRef ? { projectRef: { name: projectRef } } : (clusterRef ? { clusterRef } : {})),
         ...(secretRefs.length > 0 ? { secretRefs } : {}),
+        ...(!projectRef && ephemeral ? { ephemeral } : {}),
       }
       if (editPipeline) {
         await updatePipeline(namespace, name, spec, editPipeline.metadata.resourceVersion)
@@ -177,6 +180,10 @@ export function RawPipelineEditor({ namespace, editPipeline, onBack, onSaved, in
       </div>
 
       <SecretRefsEditor value={secretRefs} onChange={setSecretRefs} />
+
+      {!projectRef && (
+        <EphemeralEditor value={ephemeral} onChange={setEphemeral} />
+      )}
 
       {error && (
         <div style={errorBannerStyle}>{error}</div>

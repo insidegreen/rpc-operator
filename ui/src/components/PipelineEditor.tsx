@@ -110,8 +110,9 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
       const { projectRef: _omit, ...rest } = spec
       onChange(rest)
     } else {
-      // Mutually exclusive with clusterRef — drop it.
-      const { clusterRef: _drop, ...rest } = spec
+      // Mutually exclusive with clusterRef — drop it. Also drop ephemeral:
+      // it's hidden for project pipelines and must not stick to them (F53).
+      const { clusterRef: _drop, ephemeral: _dropEph, ...rest } = spec
       onChange({ ...rest, projectRef: { name: value } })
     }
   }
