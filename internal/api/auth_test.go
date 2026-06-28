@@ -110,8 +110,7 @@ func TestAuth_ModeA_NamespacedRouteWithoutToken(t *testing.T) {
 	p := &rpcv1alpha1.Pipeline{}
 	p.Name = "p1"
 	p.Namespace = defaultNamespace
-	p.Spec.Input = rpcv1alpha1.ComponentSpec{Type: "generate"}
-	p.Spec.Output = rpcv1alpha1.ComponentSpec{Type: "stdout"}
+	p.Spec.RawYAML = "input:\n  generate: {}\noutput:\n  stdout: {}\n"
 
 	ts := newTestServer(t, p)
 	defer ts.Close()
@@ -430,8 +429,7 @@ func TestAuth_ModeC_ListPipelinesAnonymous200(t *testing.T) {
 	p := &rpcv1alpha1.Pipeline{}
 	p.Name = "p1"
 	p.Namespace = defaultNamespace
-	p.Spec.Input = rpcv1alpha1.ComponentSpec{Type: "generate"}
-	p.Spec.Output = rpcv1alpha1.ComponentSpec{Type: "stdout"}
+	p.Spec.RawYAML = "input:\n  generate: {}\noutput:\n  stdout: {}\n"
 
 	ts := newTestServerModeC(t, p)
 	defer ts.Close()
@@ -450,8 +448,7 @@ func TestAuth_ModeC_GetPipelineAnonymous200(t *testing.T) {
 	p := &rpcv1alpha1.Pipeline{}
 	p.Name = "p1"
 	p.Namespace = defaultNamespace
-	p.Spec.Input = rpcv1alpha1.ComponentSpec{Type: "generate"}
-	p.Spec.Output = rpcv1alpha1.ComponentSpec{Type: "stdout"}
+	p.Spec.RawYAML = "input:\n  generate: {}\noutput:\n  stdout: {}\n"
 
 	ts := newTestServerModeC(t, p)
 	defer ts.Close()

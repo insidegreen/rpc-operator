@@ -28,8 +28,7 @@ func TestHandlerLogStream_NoPod(t *testing.T) {
 	pipe := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "idle", Namespace: "default"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input:  rpcv1alpha1.ComponentSpec{Type: "generate"},
-			Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 		},
 		// Status.PodName deliberately empty
 	}
@@ -51,8 +50,7 @@ func TestHandlerLogStream_NoClientset(t *testing.T) {
 	pipe := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "running", Namespace: "default"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input:  rpcv1alpha1.ComponentSpec{Type: "generate"},
-			Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 		},
 		Status: rpcv1alpha1.PipelineStatus{PodName: "running-pod-abc"},
 	}
@@ -74,8 +72,7 @@ func TestHandlerLogStream_Cluster_NoClientset(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "streamed", Namespace: "default"},
 		Spec: rpcv1alpha1.PipelineSpec{
 			ClusterRef: "etl",
-			Input:      rpcv1alpha1.ComponentSpec{Type: "generate"},
-			Output:     rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML:    "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 		},
 		Status: rpcv1alpha1.PipelineStatus{
 			Phase:            rpcv1alpha1.PhaseRunning,

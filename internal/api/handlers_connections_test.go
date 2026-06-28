@@ -71,7 +71,7 @@ func mockInstantServerCapturing(t *testing.T, queries *[]string, value string) *
 func TestHandlerConnections_NoPod(t *testing.T) {
 	pipe := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "idle", Namespace: "default"},
-		Spec:       rpcv1alpha1.PipelineSpec{Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "stdout"}},
+		Spec:       rpcv1alpha1.PipelineSpec{RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n"},
 	}
 	ts := newTestServerWithPrometheus(t, "http://localhost:9090", pipe)
 	defer ts.Close()
@@ -362,7 +362,7 @@ func TestHandlerNamespaceConnections_StoppedPipelineOmitted(t *testing.T) {
 	running := validRunningPipeline("alive", "default", "alive-pod")
 	stopped := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "stopped", Namespace: "default"},
-		Spec:       rpcv1alpha1.PipelineSpec{Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "stdout"}},
+		Spec:       rpcv1alpha1.PipelineSpec{RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n"},
 		Status:     rpcv1alpha1.PipelineStatus{Phase: rpcv1alpha1.PhaseStopped},
 	}
 	ts := newTestServerWithPrometheus(t, prom.URL, running, stopped)
@@ -396,7 +396,7 @@ func TestHandlerNamespaceConnections_TwoStreams_SameInstance_DistinctStates(t *t
 
 	pipeA := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "pipe-a", Namespace: "default"},
-		Spec:       rpcv1alpha1.PipelineSpec{Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "stdout"}},
+		Spec:       rpcv1alpha1.PipelineSpec{RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n"},
 		Status: rpcv1alpha1.PipelineStatus{
 			Phase:            rpcv1alpha1.PhaseRunning,
 			AssignedCluster:  "etl",
@@ -406,7 +406,7 @@ func TestHandlerNamespaceConnections_TwoStreams_SameInstance_DistinctStates(t *t
 	}
 	pipeB := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "pipe-b", Namespace: "default"},
-		Spec:       rpcv1alpha1.PipelineSpec{Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "stdout"}},
+		Spec:       rpcv1alpha1.PipelineSpec{RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n"},
 		Status: rpcv1alpha1.PipelineStatus{
 			Phase:            rpcv1alpha1.PhaseRunning,
 			AssignedCluster:  "etl",

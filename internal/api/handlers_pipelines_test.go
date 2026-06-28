@@ -52,21 +52,14 @@ func newTestServer(t *testing.T, objs ...client.Object) *httptest.Server {
 	return httptest.NewServer(mux)
 }
 
-// validPipelineBody returns a minimal valid pipeline JSON body.
+// validPipelineBody returns a minimal valid pipeline JSON body using rawYAML.
 func validPipelineBody(name, ns string) []byte {
 	p := map[string]any{
 		"apiVersion": "rpc.operator.io/v1alpha1",
 		"kind":       "Pipeline",
 		"metadata":   map[string]any{"name": name, "namespace": ns},
 		"spec": map[string]any{
-			"input": map[string]any{
-				"type":   "generate",
-				"config": map[string]any{"mapping": `root = "hi"`, "interval": "1s", "count": 3},
-			},
-			"processors": []any{
-				map[string]any{"type": "mapping", "label": "normalize", "config": `root = content().uppercase()`},
-			},
-			"output": map[string]any{"type": "stdout", "config": map[string]any{}},
+			"rawYAML": "input:\n  generate:\n    mapping: root = \"hi\"\n    interval: 1s\n    count: 3\npipeline:\n  processors:\n    - mapping: root = content().uppercase()\noutput:\n  stdout: {}\n",
 		},
 	}
 	b, _ := json.Marshal(p)
@@ -102,8 +95,7 @@ func TestHandlerPipelines_Get(t *testing.T) {
 	existing := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "my-pipe", Namespace: "default"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input:  rpcv1alpha1.ComponentSpec{Type: "generate"},
-			Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 		},
 	}
 	ts := newTestServer(t, existing)
@@ -137,8 +129,7 @@ func TestHandlerPipelines_List(t *testing.T) {
 	p1 := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "p1", Namespace: "default"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input:  rpcv1alpha1.ComponentSpec{Type: "generate"},
-			Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 		},
 	}
 	ts := newTestServer(t, p1)
@@ -165,8 +156,7 @@ func TestHandlerPipelines_Delete(t *testing.T) {
 	existing := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "del-me", Namespace: "default"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input:  rpcv1alpha1.ComponentSpec{Type: "generate"},
-			Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 		},
 	}
 	ts := newTestServer(t, existing)
@@ -188,8 +178,7 @@ func TestHandlerPipelines_Update_ReturnsUpdated(t *testing.T) {
 	existing := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "upd-me", Namespace: "default"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input:  rpcv1alpha1.ComponentSpec{Type: "generate"},
-			Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 		},
 	}
 	ts := newTestServer(t, existing)
@@ -302,15 +291,13 @@ func TestHandlerPipelines_ListAll(t *testing.T) {
 	p1 := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "p1", Namespace: "ns1"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input:  rpcv1alpha1.ComponentSpec{Type: "generate"},
-			Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 		},
 	}
 	p2 := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "p2", Namespace: "ns2"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input:  rpcv1alpha1.ComponentSpec{Type: "generate"},
-			Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 		},
 	}
 	ts := newTestServer(t, p1, p2)
@@ -391,8 +378,7 @@ func TestHandlerPipelines_CreateAlreadyExists(t *testing.T) {
 	existing := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "dup", Namespace: "default"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input:  rpcv1alpha1.ComponentSpec{Type: "generate"},
-			Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 		},
 	}
 	ts := newTestServer(t, existing)
@@ -551,8 +537,7 @@ func TestHandlerPipelines_Stop_SetsStopped(t *testing.T) {
 	existing := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "stoppable", Namespace: "default"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input:  rpcv1alpha1.ComponentSpec{Type: "generate"},
-			Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 		},
 	}
 	ts := newTestServer(t, existing)
@@ -582,8 +567,7 @@ func TestHandlerPipelines_Run_ClearsStopped(t *testing.T) {
 	existing := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "runnable", Namespace: "default"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input:   rpcv1alpha1.ComponentSpec{Type: "generate"},
-			Output:  rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 			Stopped: true,
 		},
 	}
@@ -630,8 +614,7 @@ func TestHandlerPipelines_Stop_Idempotent(t *testing.T) {
 	existing := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "already-stopped", Namespace: "default"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input:   rpcv1alpha1.ComponentSpec{Type: "generate"},
-			Output:  rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 			Stopped: true,
 		},
 	}

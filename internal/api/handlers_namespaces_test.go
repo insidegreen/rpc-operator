@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
@@ -116,11 +115,7 @@ func TestAllowlist_AllowsListedNamespace(t *testing.T) {
 	existing := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "p1", Namespace: "data-eng"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input: rpcv1alpha1.ComponentSpec{
-				Type:   "generate",
-				Config: runtime.RawExtension{Raw: []byte(`{"mapping":"root = \"hi\"","interval":"1s","count":1}`)},
-			},
-			Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 		},
 	}
 	ts := newTestServerWithAllowlist(t, []string{"data-eng"}, existing)
@@ -139,11 +134,7 @@ func TestAllowlist_EmptyAllowlistAllowsAll(t *testing.T) {
 	existing := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "p1", Namespace: "kube-system"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input: rpcv1alpha1.ComponentSpec{
-				Type:   "generate",
-				Config: runtime.RawExtension{Raw: []byte(`{"mapping":"root = \"hi\"","interval":"1s","count":1}`)},
-			},
-			Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 		},
 	}
 	ts := newTestServer(t, existing)
