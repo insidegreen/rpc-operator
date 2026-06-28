@@ -21,7 +21,6 @@ import (
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 	"github.com/insidegreen/rpc-operator-claude/internal/api"
-	"github.com/insidegreen/rpc-operator-claude/internal/api/catalog"
 )
 
 func newFakeClient(t *testing.T, objs ...client.Object) client.Client {
@@ -38,14 +37,9 @@ func newFakeClient(t *testing.T, objs ...client.Object) client.Client {
 
 func newTestServer(t *testing.T, objs ...client.Object) *httptest.Server {
 	t.Helper()
-	cat, err := catalog.Load()
-	if err != nil {
-		t.Fatalf("catalog.Load: %v", err)
-	}
 	srv := &api.Server{
-		Addr:    ":0",
-		Client:  newFakeClient(t, objs...),
-		Catalog: cat,
+		Addr:   ":0",
+		Client: newFakeClient(t, objs...),
 	}
 	mux := http.NewServeMux()
 	srv.RegisterRoutesForTest(mux)

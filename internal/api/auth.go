@@ -82,7 +82,7 @@ func (s *Server) authIfEnabled(next http.HandlerFunc) http.HandlerFunc {
 //   - Mode B without token + !s.AnonymousRead: 401.
 //
 // Used for GET routes that PRD F42 lists as anonymous-eligible: pipelines
-// (list/get/metrics), catalog, namespaces, whoami. Writes use authIfEnabled.
+// (list/get/metrics), namespaces, whoami. Writes use authIfEnabled.
 func (s *Server) authOrAnonymous(next http.HandlerFunc) http.HandlerFunc {
 	if !s.AuthEnabled {
 		return next

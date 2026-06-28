@@ -24,7 +24,6 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 
 	"github.com/insidegreen/rpc-operator-claude/internal/api"
-	"github.com/insidegreen/rpc-operator-claude/internal/api/catalog"
 )
 
 const (
@@ -230,14 +229,9 @@ func randTokenSuffix() string {
 // pass nil for RestConfig — api.New needs a real config to build a Clientset.
 func newOIDCTestServer(t *testing.T, idp *mockIdP) *httptest.Server {
 	t.Helper()
-	cat, err := catalog.Load()
-	if err != nil {
-		t.Fatalf("catalog.Load: %v", err)
-	}
 	srv := &api.Server{
 		Addr:        ":0",
 		Client:      newFakeClient(t),
-		Catalog:     cat,
 		AuthEnabled: true,
 		OIDC: &api.OIDCConfig{
 			Issuer:        idp.issuer(),
@@ -699,17 +693,12 @@ func TestOIDC_Logout_NoCookie_Idempotent(t *testing.T) {
 
 func TestOIDC_Whoami_ReportsOIDCEnabled(t *testing.T) {
 	idp := newMockIdP(t)
-	cat, err := catalog.Load()
-	if err != nil {
-		t.Fatalf("catalog.Load: %v", err)
-	}
 	// Use Mode A (auth disabled) so /whoami returns 200 without a token —
 	// we just want to read the oidcEnabled flag, no token needed.
 	srvModeA := &api.Server{
-		Addr:    ":0",
-		Client:  newFakeClient(t),
-		Catalog: cat,
-		OIDC:    &api.OIDCConfig{Issuer: idp.issuer(), ClientID: testClientID},
+		Addr:   ":0",
+		Client: newFakeClient(t),
+		OIDC:   &api.OIDCConfig{Issuer: idp.issuer(), ClientID: testClientID},
 	}
 	api.PrepareOIDCStoreForTest(srvModeA)
 	mux := http.NewServeMux()
@@ -746,15 +735,10 @@ func TestOIDC_Whoami_ReportsOIDCDisabledWhenNoConfig(t *testing.T) {
 // /auth/config must report oidcEnabled WITHOUT authentication.
 func TestOIDC_AuthConfig_ReachableWithoutTokenInModeBStrict(t *testing.T) {
 	idp := newMockIdP(t)
-	cat, err := catalog.Load()
-	if err != nil {
-		t.Fatalf("catalog.Load: %v", err)
-	}
 	// Auth on, no anonymous-read (Mode B strict), OIDC configured.
 	srv := &api.Server{
 		Addr:        ":0",
 		Client:      newFakeClient(t),
-		Catalog:     cat,
 		AuthEnabled: true,
 		OIDC:        &api.OIDCConfig{Issuer: idp.issuer(), ClientID: testClientID},
 	}
@@ -801,14 +785,9 @@ func TestOIDC_AuthConfig_ReportsDisabledWhenNoConfig(t *testing.T) {
 }
 
 func TestAuthConfig_VisualEditorEnabled(t *testing.T) {
-	cat, err := catalog.Load()
-	if err != nil {
-		t.Fatalf("catalog.Load: %v", err)
-	}
 	srv := &api.Server{
 		Addr:                ":0",
 		Client:              newFakeClient(t),
-		Catalog:             cat,
 		VisualEditorEnabled: true,
 	}
 	mux := http.NewServeMux()

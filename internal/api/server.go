@@ -1,7 +1,6 @@
-// Package api serves an HTTP REST layer over the Pipeline CRD plus a static
-// component catalog. v0.2 ships inside the operator binary; later milestones
-// may split it into a dedicated process — keep this package strictly
-// independent of internal/controller.
+// Package api serves an HTTP REST layer over the Pipeline CRD. v0.2 ships
+// inside the operator binary; later milestones may split it into a dedicated
+// process — keep this package strictly independent of internal/controller.
 //
 // SECURITY: v0.2 listens plain HTTP and performs no authn/authz. Front with
 // an Ingress that terminates TLS and integrates with your OIDC provider until
@@ -24,7 +23,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/insidegreen/rpc-operator-claude/internal/api/catalog"
 )
 
 // Server is an HTTP REST server that integrates with the controller-runtime Manager.
@@ -32,11 +30,10 @@ type Server struct {
 	Addr                string
 	Client              client.Client
 	Clientset           *kubernetes.Clientset // for pod log streaming; nil in tests
-	Catalog             *catalog.Catalog
 	PrometheusURL       string          // empty = Prometheus not configured
 	WatchNamespaces     []string        // F21: nil/empty = cluster-wide; otherwise only listed namespaces are accessible
 	AuthEnabled         bool            // F43: false = Mode A (Operator-SA serves everything); true = Mode B (token-forwarding)
-	AnonymousRead       bool            // F42: when true (and AuthEnabled), GETs on pipelines/catalog/namespaces pass without a token
+	AnonymousRead       bool            // F42: when true (and AuthEnabled), GETs on pipelines/namespaces pass without a token
 	AnonymousLogs       bool            // F42: when true (and AuthEnabled), WS /logs passes without a token; separate from AnonymousRead because log content can leak payloads
 	Scheme              *runtime.Scheme // F20a: scheme for per-request controller-runtime clients
 	RestConfig          *rest.Config    // F20a: base config (host + CA) for per-request clients; never mutated directly
@@ -50,7 +47,7 @@ type Server struct {
 // Compile-time check that Server implements manager.Runnable.
 var _ manager.Runnable = (*Server)(nil)
 
-// New constructs a Server. Returns an error if the embedded catalog fails to load.
+// New constructs a Server. Returns an error if the Kubernetes clientset cannot be built.
 // oidcCfg may be nil — in that case F20b OIDC routes are not registered and
 // Whoami reports oidcEnabled=false.
 func New(
@@ -59,10 +56,6 @@ func New(
 	authEnabled, anonymousRead, anonymousLogs, visualEditorEnabled bool,
 	oidcCfg *OIDCConfig,
 ) (*Server, error) {
-	cat, err := catalog.Default()
-	if err != nil {
-		return nil, err
-	}
 	cs, err := kubernetes.NewForConfig(restCfg)
 	if err != nil {
 		return nil, fmt.Errorf("build clientset: %w", err)
@@ -71,7 +64,6 @@ func New(
 		Addr:                addr,
 		Client:              c,
 		Clientset:           cs,
-		Catalog:             cat,
 		PrometheusURL:       prometheusURL,
 		WatchNamespaces:     watchNamespaces,
 		AuthEnabled:         authEnabled,
@@ -198,10 +190,6 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	// Spec-only — no K8s touch, no auth, no allowlist. F42 anonymous-read keeps these open.
 	mux.HandleFunc("POST /api/v1/pipelines/validate", s.handleValidate)
 	mux.HandleFunc("POST /api/v1/pipelines/render", s.handleRender)
-
-	// Catalog — anonymous-eligible (F42).
-	mux.HandleFunc("GET /api/v1/catalog", s.authOrAnonymous(s.handleCatalogList))
-	mux.HandleFunc("GET /api/v1/catalog/{category}/{name}", s.authOrAnonymous(s.handleCatalogGet))
 
 	// Logs WS: token check is inline in handleLogStream (browsers cannot set
 	// headers on `new WebSocket(...)`, so authMiddleware in front would always

@@ -87,13 +87,13 @@ func TestStaticDoesNotShadowAPI(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close()
 
-	resp, err := http.Get(ts.URL + "/api/v1/catalog")
+	resp, err := http.Get(ts.URL + "/api/v1/namespaces")
 	if err != nil {
-		t.Fatalf("GET /api/v1/catalog: %v", err)
+		t.Fatalf("GET /api/v1/namespaces: %v", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("GET /api/v1/catalog: want 200, got %d", resp.StatusCode)
+		t.Fatalf("GET /api/v1/namespaces: want 200, got %d", resp.StatusCode)
 	}
 }
 

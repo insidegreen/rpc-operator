@@ -13,21 +13,15 @@ import (
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 	"github.com/insidegreen/rpc-operator-claude/internal/api"
-	"github.com/insidegreen/rpc-operator-claude/internal/api/catalog"
 )
 
 // newTestServerWithAllowlist builds a Server with WatchNamespaces set. Empty
 // allowlist would equal cluster-wide; tests that need that use newTestServer.
 func newTestServerWithAllowlist(t *testing.T, allowlist []string, objs ...client.Object) *httptest.Server {
 	t.Helper()
-	cat, err := catalog.Load()
-	if err != nil {
-		t.Fatalf("catalog.Load: %v", err)
-	}
 	srv := &api.Server{
 		Addr:            ":0",
 		Client:          newFakeClient(t, objs...),
-		Catalog:         cat,
 		WatchNamespaces: allowlist,
 	}
 	mux := http.NewServeMux()
@@ -190,7 +184,6 @@ func TestAllowlist_DoesNotAffectGlobalRoutes(t *testing.T) {
 		path   string
 		body   []byte
 	}{
-		{"GET", "/api/v1/catalog", nil},
 		{"GET", "/api/v1/pipelines", nil},
 		{"GET", "/api/v1/namespaces", nil},
 	}

@@ -22,7 +22,6 @@ import (
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 	"github.com/insidegreen/rpc-operator-claude/internal/api"
-	"github.com/insidegreen/rpc-operator-claude/internal/api/catalog"
 )
 
 const defaultNamespace = "default"
@@ -33,14 +32,9 @@ const defaultNamespace = "default"
 // and is covered separately in cluster verification.
 func newTestServerAuthOn(t *testing.T) *httptest.Server {
 	t.Helper()
-	cat, err := catalog.Load()
-	if err != nil {
-		t.Fatalf("catalog.Load: %v", err)
-	}
 	srv := &api.Server{
 		Addr:        ":0",
 		Client:      newFakeClient(t),
-		Catalog:     cat,
 		AuthEnabled: true,
 	}
 	mux := http.NewServeMux()
@@ -200,20 +194,6 @@ func TestAuth_ModeB_NamespacesWithoutTokenReturns401(t *testing.T) {
 	}
 }
 
-func TestAuth_ModeB_CatalogWithoutTokenReturns401(t *testing.T) {
-	ts := newTestServerAuthOn(t)
-	defer ts.Close()
-
-	resp, err := http.Get(ts.URL + "/api/v1/catalog")
-	if err != nil {
-		t.Fatalf("GET: %v", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", resp.StatusCode)
-	}
-}
-
 // validate and render must remain accessible without auth (they touch no K8s).
 // F42 anonymous-read relies on this.
 
@@ -332,14 +312,9 @@ func TestAuth_TokenFromRequest_NeitherHeaderNorQuery(t *testing.T) {
 // Used to test that unauthenticated GETs pass while writes stay 401.
 func newTestServerModeC(t *testing.T, objs ...client.Object) *httptest.Server {
 	t.Helper()
-	cat, err := catalog.Load()
-	if err != nil {
-		t.Fatalf("catalog.Load: %v", err)
-	}
 	srv := &api.Server{
 		Addr:          ":0",
 		Client:        newFakeClient(t, objs...),
-		Catalog:       cat,
 		AuthEnabled:   true,
 		AnonymousRead: true,
 	}
@@ -351,14 +326,9 @@ func newTestServerModeC(t *testing.T, objs ...client.Object) *httptest.Server {
 // newTestServerModeCWithLogs adds AnonymousLogs=true on top of Mode C.
 func newTestServerModeCWithLogs(t *testing.T) *httptest.Server {
 	t.Helper()
-	cat, err := catalog.Load()
-	if err != nil {
-		t.Fatalf("catalog.Load: %v", err)
-	}
 	srv := &api.Server{
 		Addr:          ":0",
 		Client:        newFakeClient(t),
-		Catalog:       cat,
 		AuthEnabled:   true,
 		AnonymousRead: true,
 		AnonymousLogs: true,
@@ -463,20 +433,6 @@ func TestAuth_ModeC_GetPipelineAnonymous200(t *testing.T) {
 	}
 }
 
-func TestAuth_ModeC_CatalogAnonymous200(t *testing.T) {
-	ts := newTestServerModeC(t)
-	defer ts.Close()
-
-	resp, err := http.Get(ts.URL + "/api/v1/catalog")
-	if err != nil {
-		t.Fatalf("GET: %v", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("expected 200, got %d", resp.StatusCode)
-	}
-}
-
 func TestAuth_ModeC_NamespacesAnonymous200(t *testing.T) {
 	ts := newTestServerModeC(t)
 	defer ts.Close()
@@ -569,14 +525,9 @@ func TestAuth_ModeC_LogsAnonymousPassesAuthWhenFlagOn(t *testing.T) {
 func TestAuth_ModeC_AllowlistStillEnforced(t *testing.T) {
 	// Mode C with a non-empty watch-namespaces allowlist: anonymous GET on
 	// a namespace outside the allowlist must 403, not 200.
-	cat, err := catalog.Load()
-	if err != nil {
-		t.Fatalf("catalog.Load: %v", err)
-	}
 	srv := &api.Server{
 		Addr:            ":0",
 		Client:          newFakeClient(t),
-		Catalog:         cat,
 		AuthEnabled:     true,
 		AnonymousRead:   true,
 		WatchNamespaces: []string{"allowed-ns"},

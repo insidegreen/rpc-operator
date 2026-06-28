@@ -12,19 +12,13 @@ import (
 
 	rpcv1alpha1 "github.com/insidegreen/rpc-operator-claude/api/v1alpha1"
 	"github.com/insidegreen/rpc-operator-claude/internal/api"
-	"github.com/insidegreen/rpc-operator-claude/internal/api/catalog"
 )
 
 func newTestServerWithPrometheus(t *testing.T, prometheusURL string, objs ...client.Object) *httptest.Server {
 	t.Helper()
-	cat, err := catalog.Load()
-	if err != nil {
-		t.Fatalf("catalog.Load: %v", err)
-	}
 	srv := &api.Server{
 		Addr:          ":0",
 		Client:        newFakeClient(t, objs...),
-		Catalog:       cat,
 		PrometheusURL: prometheusURL,
 	}
 	mux := http.NewServeMux()
