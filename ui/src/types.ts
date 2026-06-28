@@ -14,6 +14,12 @@ export interface SecretRef {
   key: string
 }
 
+// Mirrors api/v1alpha1 EphemeralSpec (F53). TTLs are Go duration strings.
+export interface EphemeralSpec {
+  ttlAfterSuccess?: string  // e.g. "1h"
+  ttlAfterFailure?: string  // e.g. "72h"
+}
+
 export interface PipelineSpec {
   input?: ComponentSpec
   processors?: ComponentSpec[]
@@ -29,6 +35,8 @@ export interface PipelineSpec {
   /** F50.3: attach this pipeline to a PipelineProject. Mutually exclusive with clusterRef.
    *  Mirrors the CRD: an object `{ name }`, not a bare string. */
   projectRef?: { name: string }
+  /** F53: opt this pipeline into one-shot lifecycle; the operator deletes it after a result-dependent TTL. */
+  ephemeral?: EphemeralSpec
 }
 
 export interface Pipeline {
@@ -49,6 +57,10 @@ export interface Pipeline {
     assignedInstance?: string
     streamID?: string
     observedGeneration?: number
+    /** F53: set once the operator observes the ephemeral run finished; starts the TTL clock. */
+    completionTime?: string
+    /** F53: terminal outcome selecting the TTL. */
+    completionResult?: 'Succeeded' | 'Failed'
     conditions?: Array<{
       type: string
       status: string

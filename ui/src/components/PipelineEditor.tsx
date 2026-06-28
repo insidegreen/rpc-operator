@@ -1,8 +1,9 @@
 import { Suspense, lazy, useEffect, useState } from 'react'
 import { ComponentBox } from './ComponentBox'
+import { EphemeralEditor } from './EphemeralEditor'
 import { SecretRefsEditor } from './SecretRefsEditor'
 import { listClusters, listProjects, renderPipelineYAML } from '../api'
-import type { CatalogComponent, ComponentSpec, PipelineCluster, PipelineProject, PipelineSpec } from '../types'
+import type { CatalogComponent, ComponentSpec, EphemeralSpec, PipelineCluster, PipelineProject, PipelineSpec } from '../types'
 import { roleOf, outputManaged, inputManaged } from '../projectRole'
 
 const MonacoEditor = lazy(async () => {
@@ -78,6 +79,7 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
       rawYAML: t,
       ...(spec.clusterRef ? { clusterRef: spec.clusterRef } : {}),
       ...(spec.secretRefs && spec.secretRefs.length > 0 ? { secretRefs: spec.secretRefs } : {}),
+      ...(spec.ephemeral ? { ephemeral: spec.ephemeral } : {}),
     })
   }
 
@@ -111,6 +113,15 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
       // Mutually exclusive with clusterRef — drop it.
       const { clusterRef: _drop, ...rest } = spec
       onChange({ ...rest, projectRef: { name: value } })
+    }
+  }
+
+  function handleEphemeralChange(next: EphemeralSpec | undefined) {
+    if (next) {
+      onChange({ ...spec, ephemeral: next })
+    } else {
+      const { ephemeral: _drop, ...rest } = spec
+      onChange(rest)
     }
   }
 
@@ -226,6 +237,9 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
         value={spec.secretRefs ?? []}
         onChange={refs => onChange({ ...spec, secretRefs: refs })}
       />
+      {!spec.projectRef && (
+        <EphemeralEditor value={spec.ephemeral} onChange={handleEphemeralChange} />
+      )}
     </div>
   )
 }
