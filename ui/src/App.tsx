@@ -142,17 +142,23 @@ export default function App() {
     if (readOnly) return
     setEditorOrigin(origin)
     setNewPipelineProjectRef('')
+    // Switch into the editor (section + view together) only once the pipeline is
+    // loaded. Flipping the section earlier would re-mount the editor on the *stale*
+    // editPipeline/spec from a prior edit (the project-map Back button leaves `view`
+    // at editor/raw-editor), opening the previously-edited pipeline instead of this
+    // one. Batched with React 18 auto-batching, this renders the editor once, fresh.
+    const enterEditor = (v: View) => { setSection('pipelines'); setView(v) }
     try {
       const loaded = await getPipeline(pipeline.metadata.namespace, pipeline.metadata.name)
       setNamespace(loaded.metadata.namespace)
       if (loaded.spec.rawYAML) {
         setEditPipeline(loaded)
-        setView('raw-editor')
+        enterEditor('raw-editor')
       } else if (!visualEditorEnabled) {
         try {
           const yaml = await renderPipelineYAML(loaded.metadata.namespace, loaded.metadata.name, loaded.spec)
           setEditPipeline({ ...loaded, spec: { ...loaded.spec, rawYAML: yaml } })
-          setView('raw-editor')
+          enterEditor('raw-editor')
         } catch (e) {
           toast.error('Render failed: ' + (e as Error).message)
         }
@@ -160,18 +166,18 @@ export default function App() {
         setName(loaded.metadata.name)
         setSpec(loaded.spec)
         setEditPipeline(undefined)
-        setView('editor')
+        enterEditor('editor')
       }
     } catch {
       setNamespace(pipeline.metadata.namespace)
       if (pipeline.spec.rawYAML) {
         setEditPipeline(pipeline)
-        setView('raw-editor')
+        enterEditor('raw-editor')
       } else if (!visualEditorEnabled) {
         try {
           const yaml = await renderPipelineYAML(pipeline.metadata.namespace, pipeline.metadata.name, pipeline.spec)
           setEditPipeline({ ...pipeline, spec: { ...pipeline.spec, rawYAML: yaml } })
-          setView('raw-editor')
+          enterEditor('raw-editor')
         } catch (e) {
           toast.error('Render failed: ' + (e as Error).message)
         }
@@ -179,7 +185,7 @@ export default function App() {
         setName(pipeline.metadata.name)
         setSpec(pipeline.spec)
         setEditPipeline(undefined)
-        setView('editor')
+        enterEditor('editor')
       }
     }
   }
@@ -205,10 +211,9 @@ export default function App() {
   async function editPipelineByName(pipelineName: string, origin: EditorOrigin) {
     try {
       const loaded = await getPipeline(namespace, pipelineName)
-      // The editor views render only inside the `pipelines` section; without this
-      // switch an edit launched from the project map (section `projects`) updates
-      // `view` but nothing renders. Mirrors openPipelineByName's setSection.
-      setSection('pipelines')
+      // handleEdit switches into the `pipelines` section itself, atomically with
+      // the view, once the pipeline is loaded — switching here first would re-mount
+      // the editor on the previously-edited pipeline before the new load lands.
       handleEdit(loaded, origin)
     } catch (e) {
       toast.error('Could not open pipeline: ' + (e as Error).message)
