@@ -166,7 +166,10 @@ export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail
                   onMouseEnter={isDeleting ? undefined : e => (e.currentTarget.style.background = '#f9f9ff')}
                   onMouseLeave={isDeleting ? undefined : e => (e.currentTarget.style.background = '')}
                 >
-                  <td style={tdStyle}><strong>{p.metadata.name}</strong></td>
+                  <td style={tdStyle}>
+                    <strong>{p.metadata.name}</strong>
+                    {p.spec?.ephemeral && <span style={ephemeralTagStyle}>ephemeral</span>}
+                  </td>
                   <td style={tdStyle}>
                     <PhaseBadge phase={isDeleting ? 'Deleting' : p.status?.phase} />
                     <ConditionHint conditions={p.status?.conditions} phase={p.status?.phase} />
@@ -352,4 +355,8 @@ const dialogCancelBtnStyle: React.CSSProperties = {
 const dialogDeleteBtnStyle: React.CSSProperties = {
   padding: '7px 16px', border: 'none', borderRadius: 4,
   background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 600,
+}
+const ephemeralTagStyle: React.CSSProperties = {
+  marginLeft: 8, padding: '1px 7px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+  background: '#ede9fe', color: '#6d28d9', verticalAlign: 'middle',
 }
