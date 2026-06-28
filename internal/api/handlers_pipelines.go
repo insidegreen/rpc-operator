@@ -73,7 +73,7 @@ func (s *Server) handleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p.Namespace = ns
-	if verrs := ValidatePipeline(&p, s.Catalog); len(verrs) > 0 {
+	if verrs := ValidatePipeline(&p); len(verrs) > 0 {
 		writeValidationErrors(w, verrs)
 		return
 	}
@@ -100,7 +100,7 @@ func (s *Server) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	body.Namespace = ns
 	body.Name = name
-	if verrs := ValidatePipeline(&body, s.Catalog); len(verrs) > 0 {
+	if verrs := ValidatePipeline(&body); len(verrs) > 0 {
 		writeValidationErrors(w, verrs)
 		return
 	}
@@ -229,7 +229,7 @@ func (s *Server) handleValidate(w http.ResponseWriter, r *http.Request) {
 		writeJSONError(w, http.StatusBadRequest, "invalid JSON", err.Error())
 		return
 	}
-	verrs := ValidatePipeline(&p, s.Catalog)
+	verrs := ValidatePipeline(&p)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"valid":  len(verrs) == 0,
 		"errors": verrs,
