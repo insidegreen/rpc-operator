@@ -4,6 +4,7 @@ import { getToken } from '../auth'
 import { getConnections, getMetrics } from '../api'
 import { ConnectionLights } from './ConnectionLights'
 import { MetricsGraph } from './MetricsGraph'
+import { EphemeralStatus } from './EphemeralStatus'
 
 interface Props {
   pipeline: Pipeline
@@ -89,7 +90,7 @@ export function PipelineDetail({
           {!readOnly && onStop && (p.status?.phase === 'Running' || p.status?.phase === 'Pending') && (
             <button onClick={onStop} style={stopBtnStyle}>Stop</button>
           )}
-          {!readOnly && onRun && p.status?.phase === 'Stopped' && (
+          {!readOnly && onRun && p.status?.phase === 'Stopped' && !p.status?.completionResult && (
             <button onClick={onRun} style={runBtnStyle}>Run</button>
           )}
           {!readOnly && (
@@ -136,6 +137,14 @@ export function PipelineDetail({
           )}
         </div>
       </div>
+
+      {p.spec.ephemeral && (
+        <EphemeralStatus
+          ephemeral={p.spec.ephemeral}
+          completionTime={p.status?.completionTime}
+          completionResult={p.status?.completionResult}
+        />
+      )}
 
       {/* Conditions */}
       {p.status?.conditions && p.status.conditions.length > 0 && (
