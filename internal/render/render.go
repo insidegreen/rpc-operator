@@ -88,4 +88,3 @@ func injectHTTPConfig(rawYAML string) (string, error) {
 	}
 	return string(out), nil
 }
-

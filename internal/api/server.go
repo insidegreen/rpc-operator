@@ -22,25 +22,24 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-
 )
 
 // Server is an HTTP REST server that integrates with the controller-runtime Manager.
 type Server struct {
-	Addr                string
-	Client              client.Client
-	Clientset           *kubernetes.Clientset // for pod log streaming; nil in tests
-	PrometheusURL       string          // empty = Prometheus not configured
-	WatchNamespaces     []string        // F21: nil/empty = cluster-wide; otherwise only listed namespaces are accessible
-	AuthEnabled         bool            // F43: false = Mode A (Operator-SA serves everything); true = Mode B (token-forwarding)
-	AnonymousRead       bool            // F42: when true (and AuthEnabled), GETs on pipelines/namespaces pass without a token
-	AnonymousLogs       bool            // F42: when true (and AuthEnabled), WS /logs passes without a token; separate from AnonymousRead because log content can leak payloads
-	Scheme              *runtime.Scheme // F20a: scheme for per-request controller-runtime clients
-	RestConfig          *rest.Config    // F20a: base config (host + CA) for per-request clients; never mutated directly
-	OIDC                *OIDCConfig     // F20b: when nil, OIDC routes are not registered and Whoami reports oidcEnabled=false
-	oidcRT              oidcRuntime     // F20b: lazy-initialized provider + verifier + oauth2 config
-	oidcStore           *sessionStore   // F20b: in-memory session store; nil when OIDC is disabled
-	srv                 *http.Server
+	Addr            string
+	Client          client.Client
+	Clientset       *kubernetes.Clientset // for pod log streaming; nil in tests
+	PrometheusURL   string                // empty = Prometheus not configured
+	WatchNamespaces []string              // F21: nil/empty = cluster-wide; otherwise only listed namespaces are accessible
+	AuthEnabled     bool                  // F43: false = Mode A (Operator-SA serves everything); true = Mode B (token-forwarding)
+	AnonymousRead   bool                  // F42: when true (and AuthEnabled), GETs on pipelines/namespaces pass without a token
+	AnonymousLogs   bool                  // F42: when true (and AuthEnabled), WS /logs passes without a token; separate from AnonymousRead because log content can leak payloads
+	Scheme          *runtime.Scheme       // F20a: scheme for per-request controller-runtime clients
+	RestConfig      *rest.Config          // F20a: base config (host + CA) for per-request clients; never mutated directly
+	OIDC            *OIDCConfig           // F20b: when nil, OIDC routes are not registered and Whoami reports oidcEnabled=false
+	oidcRT          oidcRuntime           // F20b: lazy-initialized provider + verifier + oauth2 config
+	oidcStore       *sessionStore         // F20b: in-memory session store; nil when OIDC is disabled
+	srv             *http.Server
 }
 
 // Compile-time check that Server implements manager.Runnable.
@@ -60,17 +59,17 @@ func New(
 		return nil, fmt.Errorf("build clientset: %w", err)
 	}
 	s := &Server{
-		Addr:                addr,
-		Client:              c,
-		Clientset:           cs,
-		PrometheusURL:       prometheusURL,
-		WatchNamespaces:     watchNamespaces,
-		AuthEnabled:         authEnabled,
-		AnonymousRead:       anonymousRead,
-		AnonymousLogs:       anonymousLogs,
-		Scheme:              scheme,
-		RestConfig:          restCfg,
-		OIDC:                oidcCfg,
+		Addr:            addr,
+		Client:          c,
+		Clientset:       cs,
+		PrometheusURL:   prometheusURL,
+		WatchNamespaces: watchNamespaces,
+		AuthEnabled:     authEnabled,
+		AnonymousRead:   anonymousRead,
+		AnonymousLogs:   anonymousLogs,
+		Scheme:          scheme,
+		RestConfig:      restCfg,
+		OIDC:            oidcCfg,
 	}
 	if oidcCfg != nil {
 		s.oidcStore = newSessionStore(oidcSessionTTL)
