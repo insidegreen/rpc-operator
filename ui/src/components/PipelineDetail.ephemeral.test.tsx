@@ -7,7 +7,7 @@ const base: Pipeline = {
   apiVersion: 'rpc.operator.io/v1alpha1',
   kind: 'Pipeline',
   metadata: { name: 'oneshot', namespace: 'default' },
-  spec: { ephemeral: { ttlAfterSuccess: '1h', ttlAfterFailure: '72h' } },
+  spec: { rawYAML: '', ephemeral: { ttlAfterSuccess: '1h', ttlAfterFailure: '72h' } },
   status: { phase: 'Stopped', completionTime: '2026-06-28T12:00:00Z', completionResult: 'Succeeded' },
 }
 

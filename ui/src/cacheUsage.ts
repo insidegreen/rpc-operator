@@ -39,8 +39,7 @@ function collect(node: unknown, out: Array<{ resource: string; operator: string 
 
 /**
  * Detect which pipelines use which cache resource, and with which operators.
- * Only rawYAML pipelines are scanned: the component catalog has no `cache`
- * processor, so structured pipelines cannot reference a cache.
+ * Pipelines with empty rawYAML have nothing to scan and are skipped.
  */
 export function detectCacheUses(pipelines: Pipeline[]): CacheUse[] {
   const grouped = new Map<string, Map<string, Set<string>>>() // pipeline -> cache -> operators

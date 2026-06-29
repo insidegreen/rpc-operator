@@ -12,7 +12,7 @@ vi.mock('@monaco-editor/react', () => ({
   ),
 }))
 
-import { RawPipelineEditor } from './RawPipelineEditor'
+import { PipelineEditor } from './PipelineEditor'
 
 const server = setupServer(
   http.get('/api/v1/namespaces/default/pipelineclusters', () => HttpResponse.json({ items: [] })),
@@ -22,7 +22,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-describe('RawPipelineEditor — ephemeral', () => {
+describe('PipelineEditor — ephemeral', () => {
   it('includes spec.ephemeral in the deploy payload when toggled on', async () => {
     let captured: unknown = null
     server.use(http.post('/api/v1/namespaces/default/pipelines', async ({ request }) => {
@@ -30,7 +30,7 @@ describe('RawPipelineEditor — ephemeral', () => {
       return HttpResponse.json({ metadata: { name: 'np', namespace: 'default' }, spec: {} })
     }))
 
-    render(<RawPipelineEditor namespace="default" onBack={() => {}} onSaved={() => {}} />)
+    render(<PipelineEditor namespace="default" onBack={() => {}} onSaved={() => {}} />)
     await screen.findByRole('checkbox')  // EphemeralEditor toggle present
 
     await userEvent.type(screen.getByRole('textbox', { name: /Pipeline name/i }), 'np')

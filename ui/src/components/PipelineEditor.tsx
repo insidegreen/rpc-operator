@@ -1,9 +1,8 @@
 import { Suspense, lazy, useEffect, useState } from 'react'
-import { ComponentBox } from './ComponentBox'
+import { createPipeline, listClusters, listProjects, renderPipelineYAML, updatePipeline } from '../api'
 import { EphemeralEditor } from './EphemeralEditor'
 import { SecretRefsEditor } from './SecretRefsEditor'
-import { listClusters, listProjects, renderPipelineYAML } from '../api'
-import type { CatalogComponent, ComponentSpec, EphemeralSpec, PipelineCluster, PipelineProject, PipelineSpec } from '../types'
+import type { EphemeralSpec, Pipeline, PipelineCluster, PipelineProject, SecretRef } from '../types'
 import { roleOf, outputManaged, inputManaged } from '../projectRole'
 
 const MonacoEditor = lazy(async () => {
@@ -16,124 +15,99 @@ const MonacoEditor = lazy(async () => {
 
 interface Props {
   namespace: string
-  name: string
-  spec: PipelineSpec
-  catalogCache: Map<string, CatalogComponent>
-  onChange: (spec: PipelineSpec) => void
+  editPipeline?: Pipeline
+  onBack: () => void
+  onSaved: () => void
+  /** Pre-fills the Project dropdown for a NEW pipeline (e.g. created from a
+   *  project). Ignored when editPipeline carries its own projectRef. */
+  initialProjectRef?: string
 }
 
-export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }: Props) {
-  const [mode, setMode] = useState<'visual' | 'yaml'>('visual')
-  const [yamlText, setYamlText] = useState('')
-  const [yamlLoading, setYamlLoading] = useState(false)
-  const [yamlError, setYamlError] = useState<string>()
+export function PipelineEditor({ namespace, editPipeline, onBack, onSaved, initialProjectRef }: Props) {
+  const [name, setName] = useState(editPipeline?.metadata.name ?? '')
+  const [text, setText] = useState(editPipeline?.spec.rawYAML ?? '')
+  const [secretRefs, setSecretRefs] = useState<SecretRef[]>(editPipeline?.spec.secretRefs ?? [])
+  const [ephemeral, setEphemeral] = useState<EphemeralSpec | undefined>(editPipeline?.spec.ephemeral)
+  const [clusterRef, setClusterRef] = useState(editPipeline?.spec.clusterRef ?? '')
   const [clusters, setClusters] = useState<PipelineCluster[]>([])
+  const [projectRef, setProjectRef] = useState(editPipeline?.spec.projectRef?.name ?? initialProjectRef ?? '')
   const [projects, setProjects] = useState<PipelineProject[]>([])
-
-  const isRaw = !!spec.rawYAML
+  const [renderedYAML, setRenderedYAML] = useState<string>('')
+  const [showRendered, setShowRendered] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     listClusters(namespace).then(setClusters).catch(() => setClusters([]))
     listProjects(namespace).then(setProjects).catch(() => setProjects([]))
   }, [namespace])
 
-  const selectedProject = projects.find(p => p.metadata.name === spec.projectRef?.name)
-  const role = spec.projectRef ? roleOf(selectedProject?.spec.routes ?? [], name) : 'standalone'
-  const outManaged = !!spec.projectRef && outputManaged(role)
-  const inManaged = !!spec.projectRef && inputManaged(role)
-
-  // A project provisions a managed PipelineCluster named "<project>-cluster";
-  // attaching to a project is done via the Project dropdown (projectRef), not by
-  // selecting that cluster as a plain clusterRef target. Hide it from "Run on".
+  const selectedProject = projects.find(p => p.metadata.name === projectRef)
+  const role = projectRef ? roleOf(selectedProject?.spec.routes ?? [], name) : 'standalone'
+  // Hide project-managed clusters ("<project>-cluster") from "Run on": attaching
+  // to a project happens via the Project dropdown (projectRef), not clusterRef.
   const projectClusterNames = new Set(projects.map(p => `${p.metadata.name}-cluster`))
   const selectableClusters = clusters.filter(c => !projectClusterNames.has(c.metadata.name))
+  const managedKeys = [
+    projectRef && outputManaged(role) ? 'output:' : '',
+    projectRef && inputManaged(role) ? 'input:' : '',
+  ].filter(Boolean)
 
-  async function switchToYaml() {
-    if (!isRaw && (!spec.input || !spec.output)) {
-      setYamlError('Input and Output must be configured before switching to YAML mode.')
+  async function handleDeploy() {
+    if (!name.trim()) {
+      setError('Pipeline name must not be empty.')
       return
     }
-    setYamlError(undefined)
-    setYamlLoading(true)
+    setSaving(true)
+    setError(null)
     try {
-      const text = isRaw
-        ? (spec.rawYAML ?? '')
-        : await renderPipelineYAML(namespace, name || 'preview', spec)
-      setYamlText(text)
-      setMode('yaml')
-    } catch (e) {
-      setYamlError('Render failed: ' + (e as Error).message)
+      const spec = {
+        rawYAML: text,
+        ...(projectRef ? { projectRef: { name: projectRef } } : (clusterRef ? { clusterRef } : {})),
+        ...(secretRefs.length > 0 ? { secretRefs } : {}),
+        ...(!projectRef && ephemeral ? { ephemeral } : {}),
+      }
+      if (editPipeline) {
+        await updatePipeline(namespace, name, spec, editPipeline.metadata.resourceVersion)
+      } else {
+        await createPipeline(namespace, name, spec)
+      }
+      onSaved()
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Deploy failed'
+      setError(msg)
     } finally {
-      setYamlLoading(false)
-    }
-  }
-
-  function switchToVisual() {
-    setMode('visual')
-  }
-
-  function handleYamlChange(text: string | undefined) {
-    const t = text ?? ''
-    setYamlText(t)
-    onChange({
-      rawYAML: t,
-      ...(spec.clusterRef ? { clusterRef: spec.clusterRef } : {}),
-      ...(spec.secretRefs && spec.secretRefs.length > 0 ? { secretRefs: spec.secretRefs } : {}),
-      ...(spec.ephemeral ? { ephemeral: spec.ephemeral } : {}),
-    })
-  }
-
-  function setInput(items: ComponentSpec[]) {
-    onChange({ ...spec, input: items[0] })
-  }
-  function setProcessors(items: ComponentSpec[]) {
-    onChange({ ...spec, processors: items })
-  }
-  function setOutput(items: ComponentSpec[]) {
-    onChange({ ...spec, output: items[0] })
-  }
-
-  function handleClusterChange(value: string) {
-    if (value === '') {
-      // "Own pod" — drop clusterRef.
-      const { clusterRef: _omit, ...rest } = spec
-      onChange(rest)
-    } else {
-      // Mutually exclusive with projectRef — drop it.
-      const { projectRef: _drop, ...rest } = spec
-      onChange({ ...rest, clusterRef: value })
-    }
-  }
-
-  function handleProjectChange(value: string) {
-    if (value === '') {
-      const { projectRef: _omit, ...rest } = spec
-      onChange(rest)
-    } else {
-      // Mutually exclusive with clusterRef — drop it. Also drop ephemeral:
-      // it's hidden for project pipelines and must not stick to them (F53).
-      const { clusterRef: _drop, ephemeral: _dropEph, ...rest } = spec
-      onChange({ ...rest, projectRef: { name: value } })
-    }
-  }
-
-  function handleEphemeralChange(next: EphemeralSpec | undefined) {
-    if (next) {
-      onChange({ ...spec, ephemeral: next })
-    } else {
-      const { ephemeral: _drop, ...rest } = spec
-      onChange(rest)
+      setSaving(false)
     }
   }
 
   return (
     <div>
-      {/* Deployment target */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
+        <button onClick={onBack} style={backBtnStyle}>← Back</button>
+        <label style={{ fontSize: 14 }}>
+          Pipeline name&nbsp;
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            readOnly={!!editPipeline}
+            style={{
+              ...inputStyle,
+              background: editPipeline ? '#f5f5f5' : undefined,
+              color: editPipeline ? '#888' : undefined,
+            }}
+          />
+        </label>
+        <span style={{ fontSize: 13, color: '#888' }}>Namespace: {namespace}</span>
+        <span style={{ fontSize: 12, color: '#3b82f6', marginLeft: 'auto' }}>RAW YAML Mode</span>
+      </div>
+
       <div style={deploymentRowStyle}>
         <label style={{ fontSize: 14 }}>
           Run on&nbsp;
-          <select value={spec.clusterRef ?? ''} disabled={!!spec.projectRef}
-                  onChange={e => handleClusterChange(e.target.value)} style={selectStyle}>
+          <select value={clusterRef} disabled={!!projectRef}
+                  onChange={e => { setClusterRef(e.target.value); if (e.target.value) setProjectRef('') }}
+                  style={selectStyle}>
             <option value="">Own pod (default)</option>
             {selectableClusters.map(c => (
               <option key={c.metadata.name} value={c.metadata.name}>{c.metadata.name}</option>
@@ -142,145 +116,111 @@ export function PipelineEditor({ namespace, name, spec, catalogCache, onChange }
         </label>
         <label style={{ fontSize: 14 }}>
           Project&nbsp;
-          <select value={spec.projectRef?.name ?? ''} disabled={!!spec.clusterRef}
-                  onChange={e => handleProjectChange(e.target.value)} style={selectStyle}>
+          <select value={projectRef} disabled={!!clusterRef}
+                  onChange={e => { setProjectRef(e.target.value); if (e.target.value) setClusterRef('') }}
+                  style={selectStyle}>
             <option value="">None</option>
             {projects.map(p => (
               <option key={p.metadata.name} value={p.metadata.name}>{p.metadata.name}</option>
             ))}
           </select>
         </label>
-        {spec.projectRef && (
-          <span style={roleBadgeStyle(role)}>role: {role}</span>
-        )}
+        {projectRef && <span style={roleBadgeStyle(role)}>role: {role}</span>}
         {clusters.length === 0 && projects.length === 0 && (
           <span style={{ fontSize: 12, color: '#9ca3af' }}>no clusters or projects in this namespace</span>
         )}
       </div>
 
-      <div style={{ marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button onClick={switchToVisual} disabled={mode === 'visual'}>
-          Visual
+      {managedKeys.length > 0 && (
+        <div style={managedBannerStyle}>
+          <strong>Project “{projectRef}” manages {managedKeys.join(' and ')}.</strong>{' '}
+          Write only the non-managed keys; the operator injects the rest at deploy time.
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <button onClick={() => setShowRendered(false)} disabled={!showRendered} style={tabBtnStyle(!showRendered)}>
+          Your YAML
         </button>
-        <button onClick={switchToYaml} disabled={mode === 'yaml' || yamlLoading}>
-          {yamlLoading ? 'Loading YAML…' : 'YAML'}
+        <button
+          onClick={async () => {
+            try {
+              const yaml = await renderPipelineYAML(namespace, name || 'preview', {
+                rawYAML: text,
+                ...(projectRef ? { projectRef: { name: projectRef } } : {}),
+                ...(secretRefs.length ? { secretRefs } : {}),
+              })
+              setRenderedYAML(yaml)
+              setShowRendered(true)
+            } catch (e) {
+              setError('Render failed: ' + (e as Error).message)
+            }
+          }}
+          disabled={showRendered}
+          style={tabBtnStyle(showRendered)}
+        >
+          Rendered (preview)
         </button>
-        {isRaw && (
-          <span style={rawBadgeStyle} title="Pipeline was edited in YAML mode and will be deployed as RAW YAML.">
-            RAW YAML
-          </span>
-        )}
-        {yamlError && <span style={{ color: '#dc2626', fontSize: 13 }}>{yamlError}</span>}
       </div>
 
-      {mode === 'visual' && !isRaw && (
-        <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-          {inManaged ? (
-            <ManagedSection side="Input" role={role} project={spec.projectRef!.name} />
-          ) : (
-            <ComponentBox
-              title="Input"
-              category="inputs"
-              items={spec.input ? [spec.input] : []}
-              catalogCache={catalogCache}
-              onChange={setInput}
-            />
-          )}
-          <ComponentBox
-            title="Processors"
-            category="processors"
-            multi
-            items={spec.processors ?? []}
-            catalogCache={catalogCache}
-            onChange={setProcessors}
+      <div style={{ border: '1px solid #d1d5db', borderRadius: 4, overflow: 'hidden', marginBottom: 12 }}>
+        <Suspense fallback={<div style={{ padding: 16, color: '#888' }}>Loading editor…</div>}>
+          <MonacoEditor
+            height="500px"
+            language="yaml"
+            path="pipeline.yaml"
+            value={showRendered ? renderedYAML : text}
+            onChange={v => { if (!showRendered) setText(v ?? '') }}
+            options={{
+              minimap: { enabled: false }, fontSize: 13, scrollBeyondLastLine: false,
+              readOnly: showRendered,
+            }}
           />
-          {outManaged ? (
-            <ManagedSection side="Output" role={role} project={spec.projectRef!.name} />
-          ) : (
-            <ComponentBox
-              title="Output"
-              category="outputs"
-              items={spec.output ? [spec.output] : []}
-              catalogCache={catalogCache}
-              onChange={setOutput}
-            />
-          )}
-        </div>
+        </Suspense>
+      </div>
+
+      <SecretRefsEditor value={secretRefs} onChange={setSecretRefs} />
+
+      {!projectRef && (
+        <EphemeralEditor value={ephemeral} onChange={setEphemeral} />
       )}
 
-      {mode === 'visual' && isRaw && (
-        <div style={rawNoticeStyle}>
-          This pipeline is in RAW YAML mode. Structured editing is not available — switch to the YAML tab to edit the configuration.
-        </div>
+      {error && (
+        <div style={errorBannerStyle}>{error}</div>
       )}
 
-      {mode === 'yaml' && (
-        <div>
-          {isRaw && (
-            <div style={rawBannerStyle}>
-              YAML editing active: on deploy the pipeline will be saved as <code>spec.rawYAML</code>. Structured editing will only be possible by creating a new pipeline.
-            </div>
-          )}
-          <Suspense fallback={<div>Loading editor…</div>}>
-            <MonacoEditor
-              height="400px"
-              language="yaml"
-              path="pipeline-edit.yaml"
-              value={yamlText}
-              onChange={handleYamlChange}
-              options={{ minimap: { enabled: false }, wordWrap: 'on', fontSize: 13 }}
-            />
-          </Suspense>
-        </div>
-      )}
-
-      <SecretRefsEditor
-        value={spec.secretRefs ?? []}
-        onChange={refs => onChange({ ...spec, secretRefs: refs })}
-      />
-      {!spec.projectRef && (
-        <EphemeralEditor value={spec.ephemeral} onChange={handleEphemeralChange} />
-      )}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+        <button onClick={handleDeploy} disabled={saving} style={deployBtnStyle}>
+          {saving ? 'Deploying…' : editPipeline ? 'Update' : 'Deploy'}
+        </button>
+      </div>
     </div>
   )
 }
 
-const rawBadgeStyle: React.CSSProperties = {
-  fontSize: 11, fontWeight: 600, color: '#fff', background: '#3b82f6',
-  padding: '2px 8px', borderRadius: 10, letterSpacing: 0.3,
-}
-const rawBannerStyle: React.CSSProperties = {
-  background: '#fef3c7', color: '#92400e', padding: '8px 12px',
-  borderRadius: 4, fontSize: 13, marginBottom: 8, border: '1px solid #fde68a',
-}
-const rawNoticeStyle: React.CSSProperties = {
-  background: '#eff6ff', color: '#1e40af', padding: '12px 16px',
-  borderRadius: 4, fontSize: 14, border: '1px solid #bfdbfe',
-}
 const deploymentRowStyle: React.CSSProperties = {
   display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12,
 }
 const selectStyle: React.CSSProperties = {
   padding: '4px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14, marginLeft: 4,
 }
-
-function ManagedSection({ side, role, project }: { side: 'Input' | 'Output'; role: string; project: string }) {
-  return (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>{side}</div>
-      <div style={managedBannerStyle}>
-        <strong>Managed by project “{project}”.</strong>
-        <div style={{ marginTop: 4, color: '#15803d' }}>
-          The operator injects this {side.toLowerCase()} ({role} pipeline) as a <code>nats_jetstream</code> block at deploy time.
-          Use the project’s tactical map to change routing.
-        </div>
-      </div>
-    </div>
-  )
+const inputStyle: React.CSSProperties = {
+  padding: '5px 10px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14, marginLeft: 4,
+}
+const errorBannerStyle: React.CSSProperties = {
+  background: '#fee2e2', color: '#dc2626', padding: '8px 12px',
+  borderRadius: 4, fontSize: 13, marginBottom: 8,
+}
+const backBtnStyle: React.CSSProperties = {
+  border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#3b82f6',
+}
+const deployBtnStyle: React.CSSProperties = {
+  padding: '6px 20px', background: '#3b82f6', color: '#fff',
+  border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 14,
 }
 const managedBannerStyle: React.CSSProperties = {
   border: '1px dashed #22c55e', background: '#f0fdf4', borderRadius: 6,
-  padding: 12, fontSize: 12, color: '#166534',
+  padding: 12, fontSize: 12, color: '#166534', marginBottom: 12,
 }
 function roleBadgeStyle(role: string): React.CSSProperties {
   const map: Record<string, string> = {
@@ -289,5 +229,12 @@ function roleBadgeStyle(role: string): React.CSSProperties {
   return {
     background: map[role] ?? '#f3f4f6', color: '#374151',
     padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600,
+  }
+}
+function tabBtnStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: '5px 12px', fontSize: 13, borderRadius: 6, cursor: 'pointer',
+    border: '1px solid ' + (active ? '#1d4ed8' : '#d1d5db'),
+    background: active ? '#eff6ff' : '#fff', color: active ? '#1d4ed8' : '#444',
   }
 }

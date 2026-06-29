@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { toast } from 'sonner'
 import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Pencil, X } from 'lucide-react'
@@ -12,7 +12,6 @@ interface Props {
   onEdit?: (pipeline: Pipeline) => void
   onViewDetail: (pipeline: Pipeline) => void
   onNew?: () => void
-  onNewRaw?: () => void
 }
 
 type SortKey = 'name' | 'phase' | 'pod' | 'updated'
@@ -36,12 +35,10 @@ function sortPipelines(items: Pipeline[], key: SortKey, dir: SortDir): Pipeline[
   })
 }
 
-export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail, onNew, onNewRaw }: Props) {
+export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail, onNew }: Props) {
   const [pipelines, setPipelines] = useState<Pipeline[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>()
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
   const [sortKey, setSortKey] = useState<SortKey>('name')
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const [deletingNames, setDeletingNames] = useState<Set<string>>(new Set())
@@ -77,17 +74,6 @@ export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail
     return () => clearInterval(id)
   }, [namespace])
 
-  useEffect(() => {
-    if (!dropdownOpen) return
-    function handleClick(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [dropdownOpen])
-
   function requestDelete(p: Pipeline, e: React.MouseEvent) {
     e.stopPropagation()
     setPipelineToDelete(p)
@@ -118,28 +104,7 @@ export function PipelineList({ namespace, readOnly = false, onEdit, onViewDetail
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 style={{ margin: 0, fontSize: 18 }}>Pipelines — {namespace}</h2>
         {!readOnly && onNew && (
-          <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-flex' }}>
-            <button onClick={onNew} style={onNewRaw ? newBtnStyle : { ...newBtnStyle, borderRadius: 4 }}>+ New Pipeline</button>
-            {onNewRaw && (
-              <>
-                <button
-                  onClick={() => setDropdownOpen(o => !o)}
-                  style={{ ...newBtnStyle, padding: '6px 8px', borderLeft: '1px solid rgba(255,255,255,0.4)', borderRadius: '0 4px 4px 0' }}
-                  aria-label="More options"
-                ><ChevronDown size={14} /></button>
-                {dropdownOpen && (
-                  <div style={dropdownMenuStyle}>
-                    <button
-                      onClick={() => { setDropdownOpen(false); onNewRaw() }}
-                      style={dropdownItemStyle}
-                    >
-                      New RAW Pipeline
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+          <button onClick={onNew} style={newBtnStyle}>+ New Pipeline</button>
         )}
       </div>
       {pipelines.length === 0 ? (
@@ -328,17 +293,7 @@ const iconBtnStyle: React.CSSProperties = {
 }
 const newBtnStyle: React.CSSProperties = {
   padding: '6px 16px', background: '#3b82f6', color: '#fff',
-  border: 'none', borderRadius: '4px 0 0 4px', cursor: 'pointer', fontSize: 14,
-}
-const dropdownMenuStyle: React.CSSProperties = {
-  position: 'absolute', top: '100%', right: 0, marginTop: 2,
-  background: '#fff', border: '1px solid #d1d5db', borderRadius: 4,
-  boxShadow: '0 4px 12px rgba(0,0,0,0.12)', zIndex: 100, minWidth: 180,
-}
-const dropdownItemStyle: React.CSSProperties = {
-  display: 'block', width: '100%', padding: '8px 16px', textAlign: 'left',
-  background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: '#111',
-  whiteSpace: 'nowrap',
+  border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 14,
 }
 const dialogOverlayStyle: React.CSSProperties = {
   position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 200,

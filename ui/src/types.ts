@@ -1,12 +1,4 @@
-// Mirrors api/v1alpha1/pipeline_types.go and internal/api/catalog/catalog.go
-
-export interface ComponentSpec {
-  type: string
-  label?: string
-  // config is unknown: string (scalar), object (object/composite Pattern A),
-  // or ComponentSpec[] directly (composite Pattern B: for_each, fallback)
-  config?: unknown
-}
+// Mirrors api/v1alpha1/pipeline_types.go
 
 export interface SecretRef {
   envVar: string
@@ -21,10 +13,7 @@ export interface EphemeralSpec {
 }
 
 export interface PipelineSpec {
-  input?: ComponentSpec
-  processors?: ComponentSpec[]
-  output?: ComponentSpec
-  rawYAML?: string
+  rawYAML: string
   replicas?: number
   image?: string
   secretRefs?: SecretRef[]
@@ -69,24 +58,6 @@ export interface Pipeline {
       lastTransitionTime?: string
     }>
   }
-}
-
-// Mirrors catalog.CompositeField
-export interface CompositeField {
-  field: string        // field name in config; "" = config itself is the array (Pattern B)
-  kind: 'inputs' | 'processors' | 'outputs'
-  multi: boolean
-}
-
-export interface CatalogComponent {
-  name: string
-  category: 'inputs' | 'processors' | 'outputs'
-  status: string
-  summary: string
-  bodyKind: 'object' | 'scalar' | 'composite'
-  replicaSafety: string
-  configSchema: object            // JSON Schema Draft-07 (non-composite fields only)
-  compositeFields?: CompositeField[]
 }
 
 export interface ValidationError {

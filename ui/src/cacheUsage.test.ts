@@ -97,10 +97,10 @@ pipeline:
     expect(detectCacheUses([p])).toEqual([])
   })
 
-  it('skips structured pipelines (no rawYAML)', () => {
-    const structured = { metadata: { name: 's', namespace: 'default' },
-      spec: { processors: [{ type: 'mapping', config: 'root = this' }] } } as Pipeline
-    expect(detectCacheUses([structured])).toEqual([])
+  it('skips pipelines with empty rawYAML', () => {
+    const empty = { metadata: { name: 's', namespace: 'default' },
+      spec: { rawYAML: '' } } as Pipeline
+    expect(detectCacheUses([empty])).toEqual([])
   })
 
   it('skips pipelines with malformed YAML', () => {

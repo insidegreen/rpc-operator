@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Toaster, toast } from 'sonner'
 import {
-  listCatalog, getPipeline, listNamespaces, whoami, authConfig,
-  stopPipeline, runPipeline, refreshOIDC, oidcLogout, renderPipelineYAML,
+  getPipeline, listNamespaces, whoami, authConfig,
+  stopPipeline, runPipeline, refreshOIDC, oidcLogout,
   createProject,
   type WhoamiResponse,
 } from './api'
@@ -11,8 +11,6 @@ import benthosLogo from './assets/benthos-logo.svg'
 import { PipelineEditor } from './components/PipelineEditor'
 import { PipelineList } from './components/PipelineList'
 import { PipelineDetail } from './components/PipelineDetail'
-import { RawPipelineEditor } from './components/RawPipelineEditor'
-import { DeployBar } from './components/DeployBar'
 import { LoginScreen } from './components/LoginScreen'
 import { Sidebar, type Section } from './components/Sidebar'
 import { ClusterList } from './components/ClusterList'
@@ -20,16 +18,10 @@ import { ClusterDetail } from './components/ClusterDetail'
 import { ProjectList } from './components/ProjectList'
 import { ProjectDetail } from './components/ProjectDetail'
 import { ProjectForm } from './components/ProjectForm'
-import type { CatalogComponent, Pipeline, PipelineSpec, PipelineProjectSpec, ProjectRoute, ProjectCacheResource } from './types'
+import type { Pipeline, PipelineProjectSpec, ProjectRoute, ProjectCacheResource } from './types'
 import { pipelineBackTarget, editorBackTarget, type PipelineOrigin, type EditorOrigin } from './pipelineNav'
 
-const DEFAULT_SPEC: PipelineSpec = {
-  input: { type: 'generate', config: { mapping: 'root = "hello world"', interval: '1s', count: 5 } },
-  processors: [{ type: 'mapping', config: 'root = content().uppercase()' }],
-  output: { type: 'stdout', config: {} },
-}
-
-type View = 'list' | 'editor' | 'raw-editor' | 'detail'
+type View = 'list' | 'raw-editor' | 'detail'
 
 export default function App() {
   const [view, setView] = useState<View>('list')
@@ -46,9 +38,6 @@ export default function App() {
   const [projectDraftCaches, setProjectDraftCaches] = useState<ProjectCacheResource[]>([])
   const [projectDirty, setProjectDirty] = useState(false)
   const [namespace, setNamespace] = useState('rpc-operator-poc')
-  const [name, setName] = useState('my-pipeline')
-  const [spec, setSpec] = useState<PipelineSpec>(DEFAULT_SPEC)
-  const [catalog, setCatalog] = useState<CatalogComponent[]>([])
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null)
   const [editPipeline, setEditPipeline] = useState<Pipeline | undefined>(undefined)
   const [allowedNamespaces, setAllowedNamespaces] = useState<string[]>([])
@@ -62,7 +51,6 @@ export default function App() {
   // once-registered onExpire listener reads the live value, not a stale closure.
   const [oidcEnabled, setOidcEnabled] = useState(false)
   const oidcEnabledRef = useRef(false)
-  const [visualEditorEnabled, setVisualEditorEnabled] = useState(false)
 
   useEffect(() => {
     // F20b: when the OIDC callback redirected us back with #id_token=... in the
@@ -81,7 +69,6 @@ export default function App() {
       .then(c => {
         setOidcEnabled(c.oidcEnabled)
         oidcEnabledRef.current = c.oidcEnabled
-        setVisualEditorEnabled(c.visualEditorEnabled)
       })
       .catch(() => { /* probe failure → no SSO button, token-paste still works */ })
 
@@ -115,10 +102,6 @@ export default function App() {
 
   useEffect(() => {
     if (!me) return
-    listCatalog().then(setCatalog).catch(console.error)
-  }, [me])
-  useEffect(() => {
-    if (!me) return
     listNamespaces()
       .then(ns => {
         setAllowedNamespaces(ns)
@@ -129,10 +112,6 @@ export default function App() {
       .catch(console.error)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me])
-  const catalogCache = useMemo(
-    () => new Map(catalog.map(c => [c.category + '/' + c.name, c])),
-    [catalog],
-  )
 
   // F42: defensive — in Mode C (anonymous read-only), refuse to enter any edit/new view.
   // Buttons that trigger these are also hidden, but this guards against accidental calls.
@@ -151,42 +130,12 @@ export default function App() {
     try {
       const loaded = await getPipeline(pipeline.metadata.namespace, pipeline.metadata.name)
       setNamespace(loaded.metadata.namespace)
-      if (loaded.spec.rawYAML) {
-        setEditPipeline(loaded)
-        enterEditor('raw-editor')
-      } else if (!visualEditorEnabled) {
-        try {
-          const yaml = await renderPipelineYAML(loaded.metadata.namespace, loaded.metadata.name, loaded.spec)
-          setEditPipeline({ ...loaded, spec: { ...loaded.spec, rawYAML: yaml } })
-          enterEditor('raw-editor')
-        } catch (e) {
-          toast.error('Render failed: ' + (e as Error).message)
-        }
-      } else {
-        setName(loaded.metadata.name)
-        setSpec(loaded.spec)
-        setEditPipeline(undefined)
-        enterEditor('editor')
-      }
+      setEditPipeline(loaded)
+      enterEditor('raw-editor')
     } catch {
       setNamespace(pipeline.metadata.namespace)
-      if (pipeline.spec.rawYAML) {
-        setEditPipeline(pipeline)
-        enterEditor('raw-editor')
-      } else if (!visualEditorEnabled) {
-        try {
-          const yaml = await renderPipelineYAML(pipeline.metadata.namespace, pipeline.metadata.name, pipeline.spec)
-          setEditPipeline({ ...pipeline, spec: { ...pipeline.spec, rawYAML: yaml } })
-          enterEditor('raw-editor')
-        } catch (e) {
-          toast.error('Render failed: ' + (e as Error).message)
-        }
-      } else {
-        setName(pipeline.metadata.name)
-        setSpec(pipeline.spec)
-        setEditPipeline(undefined)
-        enterEditor('editor')
-      }
+      setEditPipeline(pipeline)
+      enterEditor('raw-editor')
     }
   }
 
@@ -276,25 +225,14 @@ export default function App() {
     toast.success(`Created project ${projectName}`)
   }
 
-  // Open the pipeline editor with projectRef pre-filled (visual editor reads
-  // spec.projectRef; the raw editor reads initialProjectRef). Back/Save return
-  // to the project via editorOrigin.
+  // Open the pipeline editor with projectRef pre-filled (the editor reads
+  // initialProjectRef). Back/Save return to the project via editorOrigin.
   function handleAddProjectPipeline(projectName: string) {
     if (readOnly) return
     setEditorOrigin({ kind: 'project', name: projectName })
     setNewPipelineProjectRef(projectName)
-    if (!visualEditorEnabled) {
-      setEditPipeline(undefined)
-      setName('my-pipeline')
-      setSpec({ projectRef: { name: projectName }, rawYAML: '' })
-      setView('raw-editor')
-      setSection('pipelines')
-      return
-    }
-    setName('my-pipeline')
-    setSpec({ ...DEFAULT_SPEC, projectRef: { name: projectName } })
     setEditPipeline(undefined)
-    setView('editor')
+    setView('raw-editor')
     setSection('pipelines')
   }
 
@@ -349,17 +287,6 @@ export default function App() {
   }
 
   function handleNew() {
-    if (readOnly) return
-    setEditorOrigin({ kind: 'list' })
-    setNewPipelineProjectRef('')
-    if (!visualEditorEnabled) { handleNewRaw(); return }
-    setName('my-pipeline')
-    setSpec(DEFAULT_SPEC)
-    setEditPipeline(undefined)
-    setView('editor')
-  }
-
-  function handleNewRaw() {
     if (readOnly) return
     setEditorOrigin({ kind: 'list' })
     setNewPipelineProjectRef('')
@@ -469,7 +396,6 @@ export default function App() {
                   onEdit={readOnly ? undefined : handleEdit}
                   onViewDetail={handleViewDetail}
                   onNew={readOnly ? undefined : handleNew}
-                  onNewRaw={readOnly ? undefined : (visualEditorEnabled ? handleNewRaw : undefined)}
                 />
               )}
 
@@ -487,27 +413,13 @@ export default function App() {
               )}
 
               {view === 'raw-editor' && (
-                <RawPipelineEditor
+                <PipelineEditor
                   namespace={namespace}
                   editPipeline={editPipeline}
                   initialProjectRef={newPipelineProjectRef}
                   onBack={backFromEditor}
                   onSaved={savedFromEditor}
                 />
-              )}
-
-              {view === 'editor' && (
-                <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
-                    <button onClick={backFromEditor} style={backLinkStyle}>← Back</button>
-                    <label style={{ fontSize: 14 }}>
-                      Pipeline name&nbsp;
-                      <input value={name} onChange={e => setName(e.target.value)} style={inputStyle} />
-                    </label>
-                  </div>
-                  <PipelineEditor namespace={namespace} name={name} spec={spec} catalogCache={catalogCache} onChange={setSpec} />
-                  <DeployBar namespace={namespace} name={name} spec={spec} />
-                </>
               )}
             </>
           )}
@@ -564,15 +476,8 @@ export default function App() {
   )
 }
 
-const backLinkStyle: React.CSSProperties = {
-  border: 'none', background: 'none', cursor: 'pointer', fontSize: 14, color: '#3b82f6',
-}
 const nsInputStyle: React.CSSProperties = {
   padding: '3px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 13,
-}
-const inputStyle: React.CSSProperties = {
-  padding: '5px 10px', border: '1px solid #ccc', borderRadius: 4, fontSize: 14,
-  marginLeft: 4,
 }
 const authHintStyle: React.CSSProperties = {
   fontSize: 11, color: '#999', fontStyle: 'italic', cursor: 'help',

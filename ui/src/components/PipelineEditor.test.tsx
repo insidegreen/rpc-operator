@@ -14,7 +14,7 @@ vi.mock('@monaco-editor/react', () => ({
   ),
 }))
 
-import { RawPipelineEditor } from './RawPipelineEditor'
+import { PipelineEditor } from './PipelineEditor'
 import type { Pipeline, PipelineProject } from '../types'
 
 const orders: PipelineProject = {
@@ -36,9 +36,9 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
 afterEach(() => server.resetHandlers())
 afterAll(() => server.close())
 
-describe('RawPipelineEditor', () => {
+describe('PipelineEditor', () => {
   it('pre-selects the project from initialProjectRef for a new pipeline', async () => {
-    render(<RawPipelineEditor namespace="default" initialProjectRef="orders"
+    render(<PipelineEditor namespace="default" initialProjectRef="orders"
       onBack={() => {}} onSaved={() => {}} />)
     await screen.findByRole('option', { name: 'orders' })
     const projectSelect = screen.getByRole('combobox', { name: /Project/i }) as HTMLSelectElement
@@ -52,7 +52,7 @@ describe('RawPipelineEditor', () => {
       metadata: { name: 'p1', namespace: 'default', resourceVersion: '7' },
       spec: { rawYAML: 'input: {}', projectRef: { name: 'orders' } },
     }
-    render(<RawPipelineEditor namespace="default" editPipeline={editPipeline}
+    render(<PipelineEditor namespace="default" editPipeline={editPipeline}
       initialProjectRef="other" onBack={() => {}} onSaved={() => {}} />)
     await screen.findByRole('option', { name: 'orders' })
     const projectSelect = screen.getByRole('combobox', { name: /Project/i }) as HTMLSelectElement
@@ -66,7 +66,7 @@ describe('RawPipelineEditor', () => {
       return HttpResponse.json({ metadata: { name: 'np', namespace: 'default' }, spec: {} })
     }))
 
-    render(<RawPipelineEditor namespace="default" initialProjectRef="orders"
+    render(<PipelineEditor namespace="default" initialProjectRef="orders"
       onBack={() => {}} onSaved={() => {}} />)
     await screen.findByRole('option', { name: 'orders' })
 

@@ -1,5 +1,5 @@
 import type {
-  BatchConnectionsResponse, CatalogComponent, ClusterDistribution, ConnectionsResponse,
+  BatchConnectionsResponse, ClusterDistribution, ConnectionsResponse,
   MetricQuery, MetricsResponse,
   Pipeline, PipelineCluster, PipelineClusterSpec, PipelineProject, PipelineProjectSpec,
   PipelineSpec, ValidateResponse,
@@ -58,8 +58,8 @@ export async function whoami(): Promise<WhoamiResponse> {
 
 // F20b: token-free capabilities probe. Lets the login screen show the SSO
 // button in Mode B strict, where whoami 401s before the user has a token.
-export async function authConfig(): Promise<{ oidcEnabled: boolean; visualEditorEnabled: boolean }> {
-  return request<{ oidcEnabled: boolean; visualEditorEnabled: boolean }>('GET', '/auth/config')
+export async function authConfig(): Promise<{ oidcEnabled: boolean }> {
+  return request<{ oidcEnabled: boolean }>('GET', '/auth/config')
 }
 
 // F20b: exchanges the backend-cached refresh_token for a fresh id_token.
@@ -86,11 +86,6 @@ export async function oidcLogout(): Promise<void> {
   } catch {
     // swallow — UI clears its local token next, which is what really matters
   }
-}
-
-export async function listCatalog(): Promise<CatalogComponent[]> {
-  const data = await request<{ items: CatalogComponent[] }>('GET', '/catalog')
-  return data.items
 }
 
 export async function listNamespaces(): Promise<string[]> {

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 
-// RawPipelineEditor lazy-loads Monaco + the RPK schema, neither of which jsdom
+// PipelineEditor lazy-loads Monaco + the RPK schema, neither of which jsdom
 // can run. Mock both so the editor renders as a plain textarea.
 vi.mock('./utils/monacoSetup', () => ({ setupMonaco: () => Promise.resolve() }))
 vi.mock('@monaco-editor/react', () => ({
@@ -34,10 +34,9 @@ const pipelines: Record<string, Pipeline> = { alpha, bravo }
 
 const server = setupServer(
   http.get('/api/v1/auth/config', () =>
-    HttpResponse.json({ oidcEnabled: false, visualEditorEnabled: false })),
+    HttpResponse.json({ oidcEnabled: false })),
   http.get('/api/v1/auth/whoami', () =>
     HttpResponse.json({ user: 'tester', readOnly: false })),
-  http.get('/api/v1/catalog', () => HttpResponse.json({ items: [] })),
   http.get('/api/v1/namespaces', () => HttpResponse.json({ namespaces: ['default'] })),
   // List endpoints are namespace-agnostic so the pre-listNamespaces poll on the
   // initial namespace is satisfied too; the UI switches to `default` immediately.
