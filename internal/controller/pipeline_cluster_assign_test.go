@@ -79,7 +79,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p1", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c1", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c1", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -106,8 +106,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: "loadproj-member-0", Namespace: namespace},
 			Spec: rpcv1alpha1.PipelineSpec{
 				ProjectRef: &rpcv1alpha1.ProjectRef{Name: "loadproj"},
-				Input:      rpcv1alpha1.ComponentSpec{Type: "generate"},
-				Output:     rpcv1alpha1.ComponentSpec{Type: "drop"},
+				RawYAML:    "input:\n  generate: {}\noutput:\n  drop: {}\n",
 			},
 		}
 		Expect(k8sClient.Create(ctx, member)).To(Succeed())
@@ -208,8 +207,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			Spec: rpcv1alpha1.PipelineSpec{
 				ClusterRef: "cs3",
 				SecretRefs: []rpcv1alpha1.SecretRef{{EnvVar: "X", SecretName: "no-such-secret", Key: "k"}},
-				Input:      rpcv1alpha1.ComponentSpec{Type: "generate"},
-				Output:     rpcv1alpha1.ComponentSpec{Type: "drop"},
+				RawYAML:    "input:\n  generate: {}\noutput:\n  drop: {}\n",
 			},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
@@ -248,7 +246,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "pr1", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "cr1", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "cr1", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -281,7 +279,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p3", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c3", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c3", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -294,7 +292,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 	It("marks Failed when clusterRef names a missing cluster", func() {
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p4", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "nope", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "nope", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -321,7 +319,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p5", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c5", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c5", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -359,7 +357,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		for _, n := range []string{"p6", "p7"} {
 			p := &rpcv1alpha1.Pipeline{
 				ObjectMeta: metav1.ObjectMeta{Name: n, Namespace: namespace},
-				Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c6", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+				Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c6", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 			}
 			Expect(k8sClient.Create(ctx, p)).To(Succeed())
 			assign(n)
@@ -381,7 +379,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p10", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c10", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c10", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -403,7 +401,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p11", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c11", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c11", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -429,7 +427,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p20", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c20", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c20", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -476,7 +474,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p12", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c12", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c12", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -512,7 +510,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p13", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c13a", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c13a", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -548,7 +546,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p15", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c15", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c15", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -582,7 +580,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p14", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c14", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "c14", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -621,7 +619,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p-active", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "ca1", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "ca1", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -648,7 +646,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p-inactive", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "ca2", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "ca2", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -674,7 +672,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p-unknown", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "ca3", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "ca3", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -700,7 +698,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p-missing", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "ca4", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "ca4", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -724,7 +722,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p-then-fail", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "ca5", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "ca5", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -757,7 +755,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p-then-stop", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "cstop", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "cstop", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -786,7 +784,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p-then-fallback", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "cfb", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "cfb", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -814,7 +812,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p-del", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "cdel", Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{ClusterRef: "cdel", RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -842,7 +840,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 		// cleanup path must be a no-op and still release the finalizer.
 		pipe := &rpcv1alpha1.Pipeline{
 			ObjectMeta: metav1.ObjectMeta{Name: "p-pod-del", Namespace: namespace},
-			Spec:       rpcv1alpha1.PipelineSpec{Input: rpcv1alpha1.ComponentSpec{Type: "generate"}, Output: rpcv1alpha1.ComponentSpec{Type: "drop"}},
+			Spec:       rpcv1alpha1.PipelineSpec{RawYAML: "input:\n  generate: {}\noutput:\n  drop: {}\n"},
 		}
 		Expect(k8sClient.Create(ctx, pipe)).To(Succeed())
 
@@ -871,8 +869,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: "p-eph-success", Namespace: namespace},
 			Spec: rpcv1alpha1.PipelineSpec{
 				ClusterRef: "ceph1",
-				Input:      rpcv1alpha1.ComponentSpec{Type: "generate"},
-				Output:     rpcv1alpha1.ComponentSpec{Type: "drop"},
+				RawYAML:    "input:\n  generate: {}\noutput:\n  drop: {}\n",
 				Ephemeral: &rpcv1alpha1.EphemeralSpec{
 					TTLAfterSuccess: metav1.Duration{Duration: time.Hour},
 					TTLAfterFailure: metav1.Duration{Duration: 72 * time.Hour},
@@ -909,8 +906,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: "p-eph-nouptime", Namespace: namespace},
 			Spec: rpcv1alpha1.PipelineSpec{
 				ClusterRef: "ceph2",
-				Input:      rpcv1alpha1.ComponentSpec{Type: "generate"},
-				Output:     rpcv1alpha1.ComponentSpec{Type: "drop"},
+				RawYAML:    "input:\n  generate: {}\noutput:\n  drop: {}\n",
 				Ephemeral: &rpcv1alpha1.EphemeralSpec{
 					TTLAfterSuccess: metav1.Duration{Duration: time.Hour},
 				},
@@ -942,8 +938,7 @@ var _ = Describe("Pipeline clusterRef assignment", func() {
 			ObjectMeta: metav1.ObjectMeta{Name: "p-eph-reject", Namespace: namespace},
 			Spec: rpcv1alpha1.PipelineSpec{
 				ClusterRef: "ceph3",
-				Input:      rpcv1alpha1.ComponentSpec{Type: "generate"},
-				Output:     rpcv1alpha1.ComponentSpec{Type: "drop"},
+				RawYAML:    "input:\n  generate: {}\noutput:\n  drop: {}\n",
 				Ephemeral: &rpcv1alpha1.EphemeralSpec{
 					TTLAfterFailure: metav1.Duration{Duration: 72 * time.Hour},
 				},

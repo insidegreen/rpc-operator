@@ -77,68 +77,6 @@ spec:
               image:
                 default: docker.redpanda.com/redpandadata/connect:4
                 type: string
-              input:
-                description: ComponentSpec describes one Redpanda Connect component
-                  (input, processor, or output).
-                properties:
-                  config:
-                    description: Config is passed verbatim as the body of the component
-                      in the rendered YAML.
-                    x-kubernetes-preserve-unknown-fields: true
-                  label:
-                    description: |-
-                      Label is the Benthos component label used for metrics and tracing.
-                      Required for processors; optional for input and output.
-                    type: string
-                  type:
-                    description: Type is the RPC component name, e.g. "generate",
-                      "kafka", "mapping", "stdout".
-                    type: string
-                required:
-                - type
-                type: object
-              output:
-                description: ComponentSpec describes one Redpanda Connect component
-                  (input, processor, or output).
-                properties:
-                  config:
-                    description: Config is passed verbatim as the body of the component
-                      in the rendered YAML.
-                    x-kubernetes-preserve-unknown-fields: true
-                  label:
-                    description: |-
-                      Label is the Benthos component label used for metrics and tracing.
-                      Required for processors; optional for input and output.
-                    type: string
-                  type:
-                    description: Type is the RPC component name, e.g. "generate",
-                      "kafka", "mapping", "stdout".
-                    type: string
-                required:
-                - type
-                type: object
-              processors:
-                items:
-                  description: ComponentSpec describes one Redpanda Connect component
-                    (input, processor, or output).
-                  properties:
-                    config:
-                      description: Config is passed verbatim as the body of the component
-                        in the rendered YAML.
-                      x-kubernetes-preserve-unknown-fields: true
-                    label:
-                      description: |-
-                        Label is the Benthos component label used for metrics and tracing.
-                        Required for processors; optional for input and output.
-                      type: string
-                    type:
-                      description: Type is the RPC component name, e.g. "generate",
-                        "kafka", "mapping", "stdout".
-                      type: string
-                  required:
-                  - type
-                  type: object
-                type: array
               projectRef:
                 description: |-
                   ProjectRef opts this pipeline into a PipelineProject. Mutually exclusive
@@ -156,8 +94,8 @@ spec:
               rawYAML:
                 description: |-
                   RawYAML holds a complete Redpanda Connect config in native YAML format.
-                  When set, Input, Processors, and Output are ignored; no catalog validation
-                  is performed. The HTTP server block is injected automatically if absent.
+                  The HTTP server block is injected automatically if absent.
+                minLength: 1
                 type: string
               replicas:
                 default: 1
@@ -204,6 +142,8 @@ spec:
                   remain in place. Toggle back to false to resume the pipeline.
                   F45: stop/run a pipeline without deleting the CR.
                 type: boolean
+            required:
+            - rawYAML
             type: object
           status:
             description: PipelineStatus defines the observed state of Pipeline.

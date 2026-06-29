@@ -31,8 +31,7 @@ func TestReconciler_CreatesPodMonitor(t *testing.T) {
 	pipe := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-pipe", Namespace: "default"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input:  rpcv1alpha1.ComponentSpec{Type: "generate"},
-			Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 		},
 	}
 	c := fake.NewClientBuilder().WithScheme(sch).WithObjects(pipe).
@@ -93,8 +92,7 @@ func TestReconciler_PodMonitorCRDMissing(t *testing.T) {
 	pipe := &rpcv1alpha1.Pipeline{
 		ObjectMeta: metav1.ObjectMeta{Name: "no-crd-pipe", Namespace: "default"},
 		Spec: rpcv1alpha1.PipelineSpec{
-			Input:  rpcv1alpha1.ComponentSpec{Type: "generate"},
-			Output: rpcv1alpha1.ComponentSpec{Type: "stdout"},
+			RawYAML: "input:\n  generate: {}\noutput:\n  stdout: {}\n",
 		},
 	}
 	c := fake.NewClientBuilder().WithScheme(sch).WithObjects(pipe).

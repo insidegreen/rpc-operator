@@ -26,7 +26,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -37,22 +36,17 @@ import (
 // helloWorldSpec returns a valid PipelineSpec mirroring the sample CR.
 func helloWorldSpec() rpcv1alpha1.PipelineSpec {
 	return rpcv1alpha1.PipelineSpec{
-		Input: rpcv1alpha1.ComponentSpec{
-			Type: "generate",
-			Config: runtime.RawExtension{Raw: []byte(
-				`{"mapping":"root = \"hello world\"","interval":"1s","count":5}`,
-			)},
-		},
-		Processors: []rpcv1alpha1.ComponentSpec{{
-			Type: "mapping",
-			Config: runtime.RawExtension{Raw: []byte(
-				`{"mapping":"root = content().uppercase()"}`,
-			)},
-		}},
-		Output: rpcv1alpha1.ComponentSpec{
-			Type:   "stdout",
-			Config: runtime.RawExtension{Raw: []byte(`{}`)},
-		},
+		RawYAML: `input:
+  generate:
+    mapping: root = "hello world"
+    interval: 1s
+    count: 5
+pipeline:
+  processors:
+    - mapping: root = content().uppercase()
+output:
+  stdout: {}
+`,
 	}
 }
 
@@ -181,9 +175,14 @@ var _ = Describe("Pipeline Controller", func() {
 		By("updating the Pipeline spec")
 		pipe := &rpcv1alpha1.Pipeline{}
 		Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
-		pipe.Spec.Input.Config = runtime.RawExtension{Raw: []byte(
-			`{"mapping":"root = \"updated\"","interval":"2s","count":1}`,
-		)}
+		pipe.Spec.RawYAML = `input:
+  generate:
+    mapping: root = "updated"
+    interval: 2s
+    count: 1
+output:
+  stdout: {}
+`
 		Expect(k8sClient.Update(ctx, pipe)).To(Succeed())
 
 		By("reconcile detects hash mismatch and deletes the pod")
@@ -373,10 +372,6 @@ var _ = Describe("Pipeline Controller", func() {
 			pipe := &rpcv1alpha1.Pipeline{}
 			Expect(k8sClient.Get(ctx, nn, pipe)).To(Succeed())
 			pipe.Spec.RawYAML = "- item1\n- item2\n"
-			// Clear structured input/output so rawYAML is the sole render path.
-			pipe.Spec.Input = rpcv1alpha1.ComponentSpec{}
-			pipe.Spec.Output = rpcv1alpha1.ComponentSpec{}
-			pipe.Spec.Processors = nil
 			Expect(k8sClient.Update(ctx, pipe)).To(Succeed())
 
 			reconcileN(1) // adds finalizer

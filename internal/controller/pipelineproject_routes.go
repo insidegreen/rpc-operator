@@ -151,20 +151,13 @@ func retentionFrom(r *rpcv1alpha1.ProjectNATSRetention) nats.Retention {
 	return out
 }
 
-// pipelineHasOutput reports whether a pipeline defines a user output. Structured
-// pipelines: Output.Type set. Raw pipelines: a top-level `output:` key present.
+// pipelineHasOutput reports whether a pipeline defines a top-level `output:` key.
 func pipelineHasOutput(p *rpcv1alpha1.Pipeline) bool {
-	if p.Spec.RawYAML != "" {
-		return rawHasTopKey(p.Spec.RawYAML, "output")
-	}
-	return p.Spec.Output.Type != ""
+	return rawHasTopKey(p.Spec.RawYAML, "output")
 }
 
 func pipelineHasInput(p *rpcv1alpha1.Pipeline) bool {
-	if p.Spec.RawYAML != "" {
-		return rawHasTopKey(p.Spec.RawYAML, "input")
-	}
-	return p.Spec.Input.Type != ""
+	return rawHasTopKey(p.Spec.RawYAML, "input")
 }
 
 // rawHasTopKey reports whether rawYAML parses to a mapping containing key.

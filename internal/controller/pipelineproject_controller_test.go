@@ -197,10 +197,20 @@ var _ = Describe("PipelineProject Controller", func() {
 		fake := nats.NewFakeManager()
 		rr := &PipelineProjectReconciler{Client: k8sClient, Scheme: k8sClient.Scheme(), Streams: fake}
 
+		// "ingest" is the route producer (it must not define its own output;
+		// the route provides it). "sink" is the consumer (it must not define
+		// its own input). I/O the route manages is left out per ValidateProject.
+		memberYAML := map[string]string{
+			"ingest": "input:\n  generate: {}\n",
+			"sink":   "output:\n  drop: {}\n",
+		}
 		for _, n := range []string{"ingest", "sink"} {
 			Expect(k8sClient.Create(ctx, &rpcv1alpha1.Pipeline{
 				ObjectMeta: metav1.ObjectMeta{Name: n, Namespace: namespace},
-				Spec:       rpcv1alpha1.PipelineSpec{ProjectRef: &rpcv1alpha1.ProjectRef{Name: projectName}},
+				Spec: rpcv1alpha1.PipelineSpec{
+					ProjectRef: &rpcv1alpha1.ProjectRef{Name: projectName},
+					RawYAML:    memberYAML[n],
+				},
 			})).To(Succeed())
 		}
 		DeferCleanup(func() {

@@ -18,26 +18,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
-
-// ComponentSpec describes one Redpanda Connect component (input, processor, or output).
-type ComponentSpec struct {
-	// Type is the RPC component name, e.g. "generate", "kafka", "mapping", "stdout".
-	// +kubebuilder:validation:Required
-	Type string `json:"type"`
-
-	// Label is the Benthos component label used for metrics and tracing.
-	// Required for processors; optional for input and output.
-	// +optional
-	Label string `json:"label,omitempty"`
-
-	// Config is passed verbatim as the body of the component in the rendered YAML.
-	// +kubebuilder:pruning:PreserveUnknownFields
-	// +kubebuilder:validation:Schemaless
-	// +optional
-	Config runtime.RawExtension `json:"config,omitempty"`
-}
 
 // SecretRef binds a Kubernetes Secret key to an environment variable name
 // that is injected into the pipeline Pod container. Reference the variable
@@ -60,20 +41,11 @@ type SecretRef struct {
 
 // PipelineSpec defines the desired state of Pipeline.
 type PipelineSpec struct {
-	// +optional
-	Input ComponentSpec `json:"input,omitempty"`
-
-	// +optional
-	Processors []ComponentSpec `json:"processors,omitempty"`
-
-	// +optional
-	Output ComponentSpec `json:"output,omitempty"`
-
 	// RawYAML holds a complete Redpanda Connect config in native YAML format.
-	// When set, Input, Processors, and Output are ignored; no catalog validation
-	// is performed. The HTTP server block is injected automatically if absent.
-	// +optional
-	RawYAML string `json:"rawYAML,omitempty"`
+	// The HTTP server block is injected automatically if absent.
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	RawYAML string `json:"rawYAML"`
 
 	// v0.1: only single-replica pipelines. Multi-replica is v0.4+.
 	// +kubebuilder:default=1
