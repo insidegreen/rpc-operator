@@ -55,71 +55,28 @@ spec:
                   pipeline is deployed as a stream into that cluster instead of getting its
                   own pod. Empty = one-pod model (unchanged). F47 Phase 2.
                 type: string
+              ephemeral:
+                description: |-
+                  Ephemeral opts this Pipeline into one-shot lifecycle: once the run
+                  completes, the operator deletes the Pipeline (and its pod/configmap/
+                  podmonitor/stream) after a result-dependent TTL. Absent = long-running
+                  (unchanged behaviour). F53.
+                properties:
+                  ttlAfterFailure:
+                    default: 72h
+                    description: TTLAfterFailure is how long a failed pipeline is
+                      retained before deletion.
+                    type: string
+                  ttlAfterSuccess:
+                    default: 1h
+                    description: |-
+                      TTLAfterSuccess is how long a successfully completed pipeline is retained
+                      before the operator deletes it.
+                    type: string
+                type: object
               image:
                 default: docker.redpanda.com/redpandadata/connect:4
                 type: string
-              input:
-                description: ComponentSpec describes one Redpanda Connect component
-                  (input, processor, or output).
-                properties:
-                  config:
-                    description: Config is passed verbatim as the body of the component
-                      in the rendered YAML.
-                    x-kubernetes-preserve-unknown-fields: true
-                  label:
-                    description: |-
-                      Label is the Benthos component label used for metrics and tracing.
-                      Required for processors; optional for input and output.
-                    type: string
-                  type:
-                    description: Type is the RPC component name, e.g. "generate",
-                      "kafka", "mapping", "stdout".
-                    type: string
-                required:
-                - type
-                type: object
-              output:
-                description: ComponentSpec describes one Redpanda Connect component
-                  (input, processor, or output).
-                properties:
-                  config:
-                    description: Config is passed verbatim as the body of the component
-                      in the rendered YAML.
-                    x-kubernetes-preserve-unknown-fields: true
-                  label:
-                    description: |-
-                      Label is the Benthos component label used for metrics and tracing.
-                      Required for processors; optional for input and output.
-                    type: string
-                  type:
-                    description: Type is the RPC component name, e.g. "generate",
-                      "kafka", "mapping", "stdout".
-                    type: string
-                required:
-                - type
-                type: object
-              processors:
-                items:
-                  description: ComponentSpec describes one Redpanda Connect component
-                    (input, processor, or output).
-                  properties:
-                    config:
-                      description: Config is passed verbatim as the body of the component
-                        in the rendered YAML.
-                      x-kubernetes-preserve-unknown-fields: true
-                    label:
-                      description: |-
-                        Label is the Benthos component label used for metrics and tracing.
-                        Required for processors; optional for input and output.
-                      type: string
-                    type:
-                      description: Type is the RPC component name, e.g. "generate",
-                        "kafka", "mapping", "stdout".
-                      type: string
-                  required:
-                  - type
-                  type: object
-                type: array
               projectRef:
                 description: |-
                   ProjectRef opts this pipeline into a PipelineProject. Mutually exclusive
@@ -137,8 +94,8 @@ spec:
               rawYAML:
                 description: |-
                   RawYAML holds a complete Redpanda Connect config in native YAML format.
-                  When set, Input, Processors, and Output are ignored; no catalog validation
-                  is performed. The HTTP server block is injected automatically if absent.
+                  The HTTP server block is injected automatically if absent.
+                minLength: 1
                 type: string
               replicas:
                 default: 1
@@ -185,6 +142,8 @@ spec:
                   remain in place. Toggle back to false to resume the pipeline.
                   F45: stop/run a pipeline without deleting the CR.
                 type: boolean
+            required:
+            - rawYAML
             type: object
           status:
             description: PipelineStatus defines the observed state of Pipeline.
@@ -198,6 +157,20 @@ spec:
                 description: |-
                   AssignedInstance is the cluster pod (e.g. etl-small-1) hosting the stream;
                   empty in pod mode. F47 Phase 2.
+                type: string
+              completionResult:
+                description: |-
+                  CompletionResult is the terminal outcome that selects the TTL
+                  (Succeeded → ttlAfterSuccess, Failed → ttlAfterFailure). F53.
+                enum:
+                - Succeeded
+                - Failed
+                type: string
+              completionTime:
+                description: |-
+                  CompletionTime is when the operator first observed an ephemeral run as
+                  finished; it starts the TTL clock. Nil while running. F53.
+                format: date-time
                 type: string
               conditions:
                 items:
@@ -271,6 +244,13 @@ spec:
                 - Stopped
                 type: string
               podName:
+                type: string
+              streamConfigHash:
+                description: |-
+                  StreamConfigHash is a hash of the stream config (placement + rendered body)
+                  last successfully deployed. The reconciler skips re-deploying the stream on a
+                  periodic resync when this still matches the desired config, avoiding an
+                  unnecessary tear-down/recreate every reconcile.
                 type: string
               streamID:
                 description: |-
