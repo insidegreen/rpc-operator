@@ -76,7 +76,6 @@ spec:
             - --auth-enabled={{ .Values.auth.enabled }}
             - --anonymous-read-enabled={{ .Values.anonymous.read.enabled }}
             - --anonymous-logs-enabled={{ .Values.anonymous.logs.enabled }}
-            - --visual-editor-enabled={{ .Values.features.visualEditor.enabled }}
             {{- if .Values.oidc.enabled }}
             - --oidc-issuer={{ .Values.oidc.issuer }}
             - --oidc-client-id={{ .Values.oidc.clientID }}

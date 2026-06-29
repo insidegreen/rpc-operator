@@ -55,13 +55,7 @@ anonymous:
   logs:
     enabled: false
 
-# F49: Visual (ComponentBox) Pipeline-Editor. Standardmaessig deaktiviert —
-# alle Editor-Pfade laufen ueber RawPipelineEditor (YAML-only). Auf `true`
-# setzen, um den visuellen Editor zu aktivieren (fuer Instanzen, auf denen er
-# vollstaendig und getestet ist).
 features:
-  visualEditor:
-    enabled: false
   # F50: Pipeline Projects. The operator provisions one NATS JetStream
   # StatefulSet per Project; this image is used for every NATS pod.
   # Override for air-gapped clusters or pinned versions.

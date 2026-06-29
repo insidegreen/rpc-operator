@@ -74,7 +74,6 @@ func main() {
 	var authEnabled bool
 	var anonymousRead bool
 	var anonymousLogs bool
-	var visualEditorEnabled bool
 	var oidcIssuer string
 	var oidcClientID string
 	var oidcScopesRaw string
@@ -114,8 +113,6 @@ func main() {
 	flag.BoolVar(&anonymousLogs, "anonymous-logs-enabled", false,
 		"F42: Allow unauthenticated log-stream WS connections. "+
 			"Requires --auth-enabled=true. Log content may contain payloads/secrets.")
-	flag.BoolVar(&visualEditorEnabled, "visual-editor-enabled", false,
-		"F49: Enable the visual (ComponentBox) pipeline editor. false = YAML-only mode (default).")
 	flag.StringVar(&oidcIssuer, "oidc-issuer", "",
 		"F20b: OIDC issuer URL (empty = OIDC disabled; F20a token-paste remains).")
 	flag.StringVar(&oidcClientID, "oidc-client-id", "",
@@ -301,7 +298,7 @@ func main() {
 		apiSrv, err := api.New(
 			apiAddr, mgr.GetClient(), mgr.GetConfig(), mgr.GetScheme(),
 			prometheusURL, watchNamespaces,
-			authEnabled, anonymousRead, anonymousLogs, visualEditorEnabled,
+			authEnabled, anonymousRead, anonymousLogs,
 			oidcCfg,
 		)
 		if err != nil {
