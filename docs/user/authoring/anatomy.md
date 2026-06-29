@@ -30,14 +30,13 @@ spec:
 
 ## `spec.rawYAML`
 
-The `spec.rawYAML` field holds a complete Redpanda Connect configuration as a multi-line YAML string. Use the `|` block scalar for multi-line values.
+The `spec.rawYAML` field holds a complete Redpanda Connect configuration as a multi-line YAML string. Use the `|` block scalar for multi-line values. This is the only authoring path — there are no structured spec fields.
 
 The operator injects an HTTP server block automatically if one is not present in your YAML — this is required for the Prometheus metrics endpoint. You do not need to add it yourself.
 
 See the [Redpanda Connect documentation](https://docs.redpanda.com/redpanda-connect/configuration/about/) for all supported input, processor, and output components.
 
-!!! note
-    Structured fields (`spec.input`, `spec.processors`, `spec.output`) exist in the CRD but are used only by the visual editor (not yet GA). Use `spec.rawYAML` for all hand-authored pipelines.
+The UI editor provides Monaco-based YAML editing with code completion powered by the RPK JSON schema — component names, required fields, and allowed values are suggested inline as you type.
 
 ## `spec.image`
 
@@ -68,6 +67,23 @@ Set to `true` to pause the pipeline without deleting the CR. The operator delete
 
 Name of a `PipelineCluster` in the same namespace. When set, the pipeline runs as a stream on the cluster instead of in its own pod. See [Running pipelines on a cluster](../clusters/cluster-ref.md).
 
+## `spec.projectRef`
+
+Assigns the pipeline to a `PipelineProject`. The operator rewrites the pipeline's input and output to route messages via the project's NATS JetStream. Mutually exclusive with `spec.clusterRef`.
+
+## `spec.ephemeral`
+
+Marks the pipeline as one-shot. The operator deletes the CR after the pipeline completes. Configure separate TTLs for success and failure:
+
+```yaml
+spec:
+  ephemeral:
+    ttlAfterSuccess: 1h
+    ttlAfterFailure: 72h
+  rawYAML: |
+    ...
+```
+
 ## Status fields
 
 After applying, the operator populates `status`:
@@ -79,6 +95,9 @@ After applying, the operator populates `status`:
 | `status.assignedCluster` | PipelineCluster name (stream mode only) |
 | `status.assignedInstance` | Cluster pod hosting the stream (stream mode only) |
 | `status.streamID` | Deployed stream ID, equal to the pipeline name (stream mode only) |
+| `status.streamConfigHash` | Hash of the last deployed stream config; used for drift detection (stream mode only) |
+| `status.completionTime` | Timestamp of pipeline completion (ephemeral pipelines) |
+| `status.completionResult` | `Success` or `Failure` after completion (ephemeral pipelines) |
 
 ```bash
 kubectl -n rpc-operator-poc get pipelines.rpc.operator.io kafka-to-stdout -o yaml

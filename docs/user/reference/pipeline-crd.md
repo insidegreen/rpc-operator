@@ -27,15 +27,12 @@ spec:
 
 ## Spec
 
-### rawYAML (string, optional)
+### rawYAML (string, required)
 
 A complete Redpanda Connect configuration in YAML format. The operator mounts this into a ConfigMap that the pipeline pod reads at startup.
 
 - **Constraint:** must be valid Redpanda Connect YAML; the operator does not validate the content — errors surface as pod startup failures
 - **Mutability:** mutable; updating triggers a pod restart
-- **Default:** `""`
-
-When `rawYAML` is set, the structured fields (`input`, `processors`, `output`) are ignored.
 
 The operator automatically injects an HTTP server block if one is absent:
 ```yaml
@@ -92,17 +89,24 @@ Name of a `PipelineCluster` in the same namespace. When set, the pipeline is dep
 - **Mutability:** mutable (with a brief interruption — stream is removed and re-deployed)
 - **Default:** `""` (pod mode)
 
-### input (object, optional)
+### projectRef (object, optional)
 
-*Visual-editor field (not covered)* — populated by the visual editor; not stable as a hand-edited API. Use `spec.rawYAML` instead.
+Membership in a `PipelineProject`. When set, the operator rewrites the pipeline's input and output to route via the project's NATS JetStream. Mutually exclusive with `clusterRef`.
 
-### processors (array, optional)
+- **Constraint:** the referenced PipelineProject must exist in the same namespace
+- **Mutability:** mutable; changes trigger stream redeployment
+- **Default:** `{}` (not set)
 
-*Visual-editor field (not covered)* — populated by the visual editor; not stable as a hand-edited API. Use `spec.rawYAML` instead.
+### ephemeral (object, optional)
 
-### output (object, optional)
+One-shot TTL configuration (F53). When set, the pipeline is automatically deleted after completion.
 
-*Visual-editor field (not covered)* — populated by the visual editor; not stable as a hand-edited API. Use `spec.rawYAML` instead.
+- `ttlAfterSuccess` (duration string, optional): time to wait after a successful run (exit 0 / stream inactive) before deleting the CR. Default: `1h`.
+- `ttlAfterFailure` (duration string, optional): time to wait after a failed run before deleting the CR. Default: `72h`.
+
+- **Constraint:** none; TTL durations must be valid Go duration strings (e.g. `30m`, `2h`)
+- **Mutability:** mutable
+- **Default:** `{}` (not set; pipeline is not ephemeral)
 
 ## Status
 
@@ -132,6 +136,18 @@ Name of the cluster pod (e.g. `etl-small-1`) that hosts the stream (stream mode 
 ### streamID (string)
 
 The deployed stream ID, equal to the Pipeline's name (stream mode only). Empty in pod mode.
+
+### streamConfigHash (string)
+
+SHA-256 hash of the last successfully deployed stream configuration (stream mode only). Used by the reconciler to detect config drift and trigger a resync. Empty in pod mode.
+
+### completionTime (string)
+
+RFC 3339 timestamp of when the pipeline completed (pod exited / stream became inactive). Set only for ephemeral pipelines. Empty when not applicable.
+
+### completionResult (string)
+
+Outcome of the most recent completion: `Success` or `Failure`. Set only for ephemeral pipelines. Empty when not applicable.
 
 ### observedGeneration (integer)
 
