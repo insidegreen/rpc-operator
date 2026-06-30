@@ -2,6 +2,35 @@
 
 All notable changes to this project are documented here.
 
+## Feature — F54: Visual-Editor entfernt & rawYAML-only Pipeline-CRD (v1.2.0) — 2026-06-30
+
+### Geändert
+- **BREAKING — Pipeline-CRD auf `rawYAML`-only vereinheitlicht:** Die strukturierten Felder
+  `spec.input` / `spec.processors` / `spec.output` (`ComponentSpec`) wurden entfernt; `spec.rawYAML`
+  ist nun Pflichtfeld (`minLength: 1`). Pipelines werden ausschließlich als native
+  Redpanda-Connect-YAML definiert. Clean Break ohne Bestandsmigration: bestehende, strukturiert
+  definierte Pipeline-CRs müssen als `rawYAML` neu angelegt werden. Der mitgelieferte Helm-Chart-CRD
+  wurde entsprechend synchronisiert.
+
+### Entfernt
+- **Visueller Pipeline-Editor (Box-Editor):** Die Drei-Boxen-UI (Input/Processors/Output) mit
+  Komponenten-Picker, Schema-Formularen und Composite-Form wurde vollständig entfernt. Der (umbenannte)
+  `PipelineEditor` ist der einzige Editor — native YAML mit RPK-Code-Completion (Monaco).
+- **Component-Catalog samt API:** Das `internal/api/catalog`-Package und die Endpoints
+  `GET /api/v1/catalog` sowie `GET /api/v1/catalog/{category}/{name}` wurden entfernt (sie speisten
+  ausschließlich den Visual-Editor). Die Code-Completion bleibt erhalten (extern via rpk-CLI
+  generiertes Schema, unabhängig vom Catalog).
+- **F49 Visual-Editor-Feature-Flag:** `--visual-editor-enabled` (Helm `features.visualEditor.enabled`)
+  und der `visualEditorEnabled`-Schlüssel in `GET /api/v1/auth/config` entfielen ersatzlos.
+
+### Unverändert
+- projectRef-/Cluster-Mode-I/O-Rewriting (arbeitet auf dem gerenderten YAML-String, nicht auf
+  Struct-Feldern), Ephemeral-Pipelines (F53), Secret-Refs und Cache-Verwaltung bleiben funktional
+  unberührt.
+
+Hintergrund/Entscheidung: ADR-0006 (Raw-only Pipeline-Authoring). Design-Spec:
+`docs/superpowers/specs/2026-06-28-remove-visual-editor-design.md`.
+
 ## Fix — clusterRef-Stream wird nach Config-Update nicht neu deployt (Self-Heal) — 2026-06-24
 
 ### Behoben
